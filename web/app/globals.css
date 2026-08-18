@@ -61,11 +61,20 @@ h1, h2 {
   font-size: 18px;
   letter-spacing: 0.02em;
   color: var(--ink);
+  flex-shrink: 0; /* the brand never shrinks or wraps - .tabs is the flexible/scrollable one */
 }
 
 .tabs {
   display: flex;
   gap: 4px;
+  min-width: 0; /* lets this flex child actually shrink instead of forcing topbar-inner to overflow */
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+  -webkit-overflow-scrolling: touch;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .tab {
@@ -87,6 +96,28 @@ h1, h2 {
   background: var(--neo-bg);
   box-shadow: var(--neo-inset);
   font-weight: 700;
+}
+
+.tab {
+  flex-shrink: 0; /* a tab never gets squeezed illegibly - the row scrolls instead */
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .topbar-inner {
+    gap: 12px;
+    padding: 0 14px;
+  }
+
+  .brand {
+    flex-shrink: 0;
+    font-size: 15px;
+  }
+
+  .tab {
+    padding: 7px 10px;
+    font-size: 13px;
+  }
 }
 
 /* ── Page ───────────────────────────────────────────────────────────── */
