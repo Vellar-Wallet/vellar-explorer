@@ -39,7 +39,7 @@ export default async function EcosystemPage() {
                   <span
                     className="dot"
                     style={{
-                      background: entry.facilitatorId === null ? "var(--tint-amber-b)" : "var(--signal)",
+                      background: entry.facilitatorId === null ? "var(--muted2)" : "var(--signal)",
                     }}
                   />
                   {entry.facilitatorId ?? "Unattributed"} — {entry.count.toLocaleString()} (

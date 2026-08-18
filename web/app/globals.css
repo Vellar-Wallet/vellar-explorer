@@ -1,24 +1,16 @@
-/* Tokens lifted from vellar-sdk's pitch deck site (website/public/pitchdeck.html :root) — same
-   palette, not a reinterpretation of it. */
+/* Tokens copied directly from docs.vellar.xyz's own stylesheet (_next/static/css, fetched
+   2026-08-18) — the real, current Vellar docs design system, not a reinterpretation of it. Same
+   variable names on purpose, so a future diff against the source is trivial. */
 :root {
-  color-scheme: light;
-  --ink: #1f2a27; /* near-black text */
-  --ink2: #33423d; /* secondary text */
-  --ink3: #5c6b65; /* muted */
-  --paper: #ffffff; /* card background */
-  --page: #eef2f4; /* page background */
-  --line: #e3e9ea; /* hairlines */
-  --green: #13594d; /* brand deep green — titles/accents */
-  --green-mid: #1f8a72;
-  --signal: #178f74; /* readable green on light — links, primary actions */
-  --tint-green: #eaf6f0;
-  --tint-green-b: #cfeade;
-  --tint-blue: #eaf1fb;
-  --tint-blue-b: #d3e2f6;
-  --tint-amber: #fdf3e7;
-  --tint-amber-b: #f6e3c6;
-  --tint-grey: #f3f6f6;
-  --tint-grey-b: #e6ecec;
+  color-scheme: dark;
+  --neo-bg: #0a0f0d;
+  --neo-surface: #0e1512;
+  --line: rgba(255, 255, 255, 0.09);
+  --signal: #3ee6ad;
+  --ink: #eff5f2;
+  --muted: rgba(239, 245, 242, 0.74);
+  --muted2: rgba(239, 245, 242, 0.56);
+  --neo-inset: inset 4px 4px 10px rgba(0, 0, 0, 0.66), inset -4px -4px 10px rgba(62, 230, 173, 0.06);
 }
 
 * {
@@ -27,30 +19,37 @@
 
 body {
   margin: 0;
-  background: var(--page);
+  background: var(--neo-bg);
   color: var(--ink);
-  font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
 h1, h2 {
-  font-family: "Clash Display", "Plus Jakarta Sans", sans-serif;
-  color: var(--green);
+  font-family: "Clash Display", sans-serif;
+  color: var(--ink);
+  letter-spacing: -0.01em;
 }
 
-/* ── Top bar + tabs ─────────────────────────────────────────────────── */
+/* ── Top bar + tabs — mirrors docs-topbar / docs-nav-link ─────────────── */
 
 .topbar {
-  background: var(--paper);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: color-mix(in srgb, var(--neo-bg) 88%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line);
 }
 
 .topbar-inner {
   max-width: 1080px;
   margin: 0 auto;
-  padding: 14px 20px;
+  padding: 0 20px;
+  height: 64px;
   display: flex;
   align-items: center;
   gap: 28px;
@@ -59,8 +58,9 @@ h1, h2 {
 .brand {
   font-family: "Clash Display", sans-serif;
   font-weight: 600;
-  font-size: 16px;
-  color: var(--green);
+  font-size: 18px;
+  letter-spacing: 0.02em;
+  color: var(--ink);
 }
 
 .tabs {
@@ -69,36 +69,24 @@ h1, h2 {
 }
 
 .tab {
-  padding: 7px 14px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
   text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  color: var(--muted);
+  transition: color 0.15s, background 0.15s;
+}
+
+.tab:hover {
+  color: var(--ink);
 }
 
 .tab.active {
-  background: var(--tint-green);
-  color: var(--green);
-}
-
-.tab.disabled {
-  color: var(--ink3);
-  cursor: default;
-}
-
-.tab .soon {
-  font-family: "Plus Jakarta Sans", sans-serif;
-  font-size: 10px;
+  color: var(--signal);
+  background: var(--neo-bg);
+  box-shadow: var(--neo-inset);
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  background: var(--tint-grey-b);
-  color: var(--ink3);
-  padding: 1px 6px;
-  border-radius: 999px;
 }
 
 /* ── Page ───────────────────────────────────────────────────────────── */
@@ -114,13 +102,13 @@ header.page-header {
 }
 
 header.page-header h1 {
-  font-size: 24px;
-  margin: 0 0 6px;
+  font-size: clamp(1.6rem, 3vw, 2rem);
+  margin: 0 0 8px;
 }
 
 header.page-header p {
   margin: 0;
-  color: var(--ink3);
+  color: var(--muted);
   max-width: 640px;
 }
 
@@ -133,14 +121,14 @@ header.page-header p {
 
 .stat-card {
   border: 1px solid var(--line);
-  background: var(--paper);
+  background: var(--neo-surface);
   border-radius: 14px;
   padding: 16px 18px;
 }
 
 .stat-card .label {
   font-size: 11px;
-  color: var(--ink3);
+  color: var(--muted2);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 600;
@@ -158,11 +146,12 @@ header.page-header p {
   font-size: 14px;
   font-family: "Space Mono", monospace;
   font-weight: 700;
+  color: var(--signal);
 }
 
 section.breakdown {
   border: 1px solid var(--line);
-  background: var(--paper);
+  background: var(--neo-surface);
   border-radius: 14px;
   padding: 16px 18px;
   margin-bottom: 20px;
@@ -172,7 +161,7 @@ section.breakdown h2 {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--ink3);
+  color: var(--muted2);
   font-family: "Plus Jakarta Sans", sans-serif;
   font-weight: 700;
   margin: 0 0 10px;
@@ -185,11 +174,14 @@ section.breakdown h2 {
   padding: 7px 0;
   border-bottom: 1px solid var(--line);
   font-size: 13px;
+  color: var(--muted);
 }
 
 .breakdown-row:last-child {
   border-bottom: none;
 }
+
+/* ── Badges: signal-filled = confirmed/attributed, neutral = unknown ──── */
 
 .badge {
   display: inline-block;
@@ -200,6 +192,17 @@ section.breakdown h2 {
   border: 1px solid transparent;
 }
 
+.badge.unattributed {
+  background: var(--neo-surface);
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+.badge.attributed {
+  background: var(--signal);
+  color: #04120c;
+}
+
 .share-bar {
   display: flex;
   height: 14px;
@@ -207,6 +210,7 @@ section.breakdown h2 {
   overflow: hidden;
   border: 1px solid var(--line);
   margin: 4px 0 16px;
+  background: var(--neo-bg);
 }
 
 .share-bar .segment.attributed {
@@ -214,7 +218,7 @@ section.breakdown h2 {
 }
 
 .share-bar .segment.unattributed {
-  background: var(--tint-amber-b);
+  background: var(--muted2);
 }
 
 .share-legend {
@@ -222,7 +226,7 @@ section.breakdown h2 {
   gap: 16px;
   flex-wrap: wrap;
   font-size: 12px;
-  color: var(--ink3);
+  color: var(--muted);
   margin-bottom: 24px;
 }
 
@@ -234,17 +238,7 @@ section.breakdown h2 {
   margin-right: 5px;
 }
 
-.badge.unattributed {
-  background: var(--tint-amber);
-  border-color: var(--tint-amber-b);
-  color: #8a5a10;
-}
-
-.badge.attributed {
-  background: var(--tint-green);
-  border-color: var(--tint-green-b);
-  color: var(--green);
-}
+/* ── Filter form — primary pill button matches docs-launch ─────────────── */
 
 form.filters {
   display: flex;
@@ -255,36 +249,43 @@ form.filters {
 
 form.filters input {
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 8px 12px;
   font-size: 13px;
   min-width: 220px;
-  background: var(--paper);
+  background: var(--neo-surface);
+  color: var(--ink);
   font-family: "Plus Jakarta Sans", sans-serif;
+}
+
+form.filters input::placeholder {
+  color: var(--muted2);
 }
 
 form.filters button {
   border: none;
   background: var(--signal);
-  color: white;
-  border-radius: 8px;
-  padding: 8px 16px;
+  color: #04120c;
+  border-radius: 999px;
+  padding: 8px 18px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
 }
 
 form.filters a.clear {
   align-self: center;
   font-size: 13px;
-  color: var(--ink3);
+  color: var(--muted);
 }
+
+/* ── Table — mirrors docs-prose table ──────────────────────────────────── */
 
 .table-wrap {
   overflow-x: auto;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: var(--paper);
+  background: var(--neo-surface);
 }
 
 table.feed {
@@ -298,10 +299,11 @@ table.feed th {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--ink3);
+  color: var(--muted2);
   border-bottom: 1px solid var(--line);
   padding: 10px 12px;
-  background: var(--tint-grey);
+  background: color-mix(in srgb, var(--neo-bg) 60%, transparent);
+  font-weight: 700;
 }
 
 table.feed td {
@@ -309,6 +311,7 @@ table.feed td {
   border-bottom: 1px solid var(--line);
   font-family: "Space Mono", monospace;
   white-space: nowrap;
+  color: var(--muted);
 }
 
 table.feed tr:last-child td {
@@ -318,27 +321,42 @@ table.feed tr:last-child td {
 table.feed a {
   color: var(--signal);
   text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--signal) 40%, transparent);
 }
 
 table.feed a:hover {
-  text-decoration: underline;
+  border-bottom-color: var(--signal);
 }
+
+/* ── Pagination — mirrors docs-pager-link ──────────────────────────────── */
 
 .pagination {
   margin-top: 16px;
   display: flex;
   justify-content: flex-end;
+  gap: 12px;
 }
 
 .pagination a {
-  color: var(--signal);
+  display: inline-block;
+  color: var(--ink);
   text-decoration: none;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--neo-surface);
+  transition: transform 0.12s, border-color 0.2s;
+}
+
+.pagination a:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--signal) 40%, var(--line));
 }
 
 .empty {
   padding: 28px;
   text-align: center;
-  color: var(--ink3);
+  color: var(--muted2);
 }
