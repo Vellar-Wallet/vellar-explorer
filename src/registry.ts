@@ -29,3 +29,9 @@ export function attributeFacilitator(sponsor: string): Attribution {
     ? { facilitatorId, confidence: "matched-known-signer" }
     : { facilitatorId: null, confidence: "unattributed" };
 }
+
+/** How many facilitators this registry actually knows a signer key for — "registered" in the
+ * honest sense (statically confirmed), not "self-announced." */
+export function registeredFacilitatorCount(): number {
+  return KNOWN_SIGNERS.size;
+}

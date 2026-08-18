@@ -31,7 +31,9 @@ export interface CursorState {
 export interface ListFilter {
   readonly limit: number;
   readonly cursor?: string;
-  readonly facilitatorId?: string;
+  /** undefined = no facilitator filter; null = filter to unattributed (facilitator_id IS NULL)
+   * only; a string = filter to that specific known facilitator id. */
+  readonly facilitatorId?: string | null;
   readonly payTo?: string;
 }
 
@@ -57,6 +59,7 @@ export interface Stats {
   readonly uniqueSellers: number;
   readonly topAsset: TopAsset | undefined;
   readonly facilitatorBreakdown: readonly FacilitatorBreakdownEntry[];
+  readonly lastPaymentAt: string | undefined;
 }
 
 export interface FacilitatorSummary {
@@ -66,6 +69,9 @@ export interface FacilitatorSummary {
   readonly uniqueSellers: number;
   readonly firstSeen: string;
   readonly lastSeen: string;
+  /** The single asset this facilitator has moved the most of, by summed amount — an all-time
+   * aggregate, not a time-windowed one, so it needs no new date-filtering machinery. */
+  readonly topVolume: AssetVolume | undefined;
 }
 
 export interface AssetVolume {
@@ -207,7 +213,9 @@ export class ExplorerStore {
   async listPayments(filter: ListFilter): Promise<ListResult> {
     const conditions: string[] = [];
     const args: (string | number)[] = [];
-    if (filter.facilitatorId !== undefined) {
+    if (filter.facilitatorId === null) {
+      conditions.push("facilitator_id IS NULL");
+    } else if (filter.facilitatorId !== undefined) {
       conditions.push("facilitator_id = ?");
       args.push(filter.facilitatorId);
     }
@@ -239,17 +247,19 @@ export class ExplorerStore {
   /** Five independent aggregate queries, run in parallel — each is a simple scan over the
    * existing schema, no new tables or precomputed rollups needed at this scale. */
   async getStats(): Promise<Stats> {
-    const [totalResult, buyersResult, sellersResult, topAssetResult, breakdownResult] = await Promise.all([
-      this.client.execute("SELECT COUNT(*) as n FROM payments"),
-      this.client.execute("SELECT COUNT(DISTINCT buyer) as n FROM payments"),
-      this.client.execute("SELECT COUNT(DISTINCT seller) as n FROM payments"),
-      this.client.execute(
-        "SELECT asset_contract, COUNT(*) as n FROM payments GROUP BY asset_contract ORDER BY n DESC LIMIT 1",
-      ),
-      this.client.execute(
-        "SELECT facilitator_id, COUNT(*) as n FROM payments GROUP BY facilitator_id ORDER BY n DESC",
-      ),
-    ]);
+    const [totalResult, buyersResult, sellersResult, topAssetResult, breakdownResult, lastPaymentResult] =
+      await Promise.all([
+        this.client.execute("SELECT COUNT(*) as n FROM payments"),
+        this.client.execute("SELECT COUNT(DISTINCT buyer) as n FROM payments"),
+        this.client.execute("SELECT COUNT(DISTINCT seller) as n FROM payments"),
+        this.client.execute(
+          "SELECT asset_contract, COUNT(*) as n FROM payments GROUP BY asset_contract ORDER BY n DESC LIMIT 1",
+        ),
+        this.client.execute(
+          "SELECT facilitator_id, COUNT(*) as n FROM payments GROUP BY facilitator_id ORDER BY n DESC",
+        ),
+        this.client.execute("SELECT MAX(closed_at) as last FROM payments"),
+      ]);
 
     const topAssetRow = topAssetResult.rows[0];
     const topAsset: TopAsset | undefined = topAssetRow
@@ -261,28 +271,56 @@ export class ExplorerStore {
       count: Number(row["n"]),
     }));
 
+    const lastPaymentAtRaw = lastPaymentResult.rows[0]?.["last"];
+
     return {
       totalPayments: Number(totalResult.rows[0]?.["n"] ?? 0),
       uniqueBuyers: Number(buyersResult.rows[0]?.["n"] ?? 0),
       uniqueSellers: Number(sellersResult.rows[0]?.["n"] ?? 0),
       topAsset,
       facilitatorBreakdown,
+      lastPaymentAt: lastPaymentAtRaw === null || lastPaymentAtRaw === undefined ? undefined : String(lastPaymentAtRaw),
     };
   }
 
   async getFacilitatorSummaries(): Promise<FacilitatorSummary[]> {
-    const result = await this.client.execute(
-      `SELECT facilitator_id, COUNT(*) as n, COUNT(DISTINCT buyer) as buyers,
-              COUNT(DISTINCT seller) as sellers, MIN(closed_at) as first_seen, MAX(closed_at) as last_seen
-       FROM payments GROUP BY facilitator_id ORDER BY n DESC`,
-    );
-    return result.rows.map(row => ({
+    const [summaryResult, volumeResult] = await Promise.all([
+      this.client.execute(
+        `SELECT facilitator_id, COUNT(*) as n, COUNT(DISTINCT buyer) as buyers,
+                COUNT(DISTINCT seller) as sellers, MIN(closed_at) as first_seen, MAX(closed_at) as last_seen
+         FROM payments GROUP BY facilitator_id ORDER BY n DESC`,
+      ),
+      // Per (facilitator, asset) totals, so the top one per facilitator can be picked in JS —
+      // simpler and just as correct as a window-function query, and doesn't assume a SQLite
+      // version with them available.
+      this.client.execute(
+        `SELECT facilitator_id, asset_contract, CAST(SUM(CAST(amount AS INTEGER)) AS TEXT) as total
+         FROM payments GROUP BY facilitator_id, asset_contract`,
+      ),
+    ]);
+
+    const topVolumeByFacilitator = new Map<string, AssetVolume>();
+    for (const row of volumeResult.rows) {
+      const key = row["facilitator_id"] === null ? " unattributed" : String(row["facilitator_id"]);
+      const candidate: AssetVolume = { assetContract: String(row["asset_contract"]), total: String(row["total"]) };
+      const current = topVolumeByFacilitator.get(key);
+      // Both are 64-bit-safe integer strings of equal-or-comparable magnitude here (same guard as
+      // the SQL SUM itself) — safe to compare as BigInt for "which is larger," never as Number.
+      if (!current || BigInt(candidate.total) > BigInt(current.total)) {
+        topVolumeByFacilitator.set(key, candidate);
+      }
+    }
+
+    return summaryResult.rows.map(row => ({
       facilitatorId: row["facilitator_id"] === null ? null : String(row["facilitator_id"]),
       paymentCount: Number(row["n"]),
       uniqueBuyers: Number(row["buyers"]),
       uniqueSellers: Number(row["sellers"]),
       firstSeen: String(row["first_seen"]),
       lastSeen: String(row["last_seen"]),
+      topVolume: topVolumeByFacilitator.get(
+        row["facilitator_id"] === null ? " unattributed" : String(row["facilitator_id"]),
+      ),
     }));
   }
 
@@ -343,6 +381,25 @@ export class ExplorerStore {
       uniqueSellers: Number(row["sellers"]),
       totalVolume: String(row["total"]),
     }));
+  }
+
+  /** A single filtered COUNT, not the full trailing-window/growth-delta machinery a real "active
+   * in the last N days" feature would eventually need — just enough for one honest stat card. */
+  async countDistinctSellersSince(sinceIso: string): Promise<number> {
+    const result = await this.client.execute({
+      sql: "SELECT COUNT(DISTINCT seller) as n FROM payments WHERE closed_at >= ?",
+      args: [sinceIso],
+    });
+    return Number(result.rows[0]?.["n"] ?? 0);
+  }
+
+  /** Same simplicity note as countDistinctSellersSince. */
+  async countPaymentsSince(sinceIso: string): Promise<number> {
+    const result = await this.client.execute({
+      sql: "SELECT COUNT(*) as n FROM payments WHERE closed_at >= ?",
+      args: [sinceIso],
+    });
+    return Number(result.rows[0]?.["n"] ?? 0);
   }
 
   /** Daily buckets only for v1 — `bucket` param threaded through now so a weekly/hourly option

@@ -31,6 +31,7 @@ export interface StatsResponse {
   readonly uniqueSellers: number;
   readonly topAsset: { readonly assetContract: string; readonly count: number } | null;
   readonly facilitatorBreakdown: readonly { readonly facilitatorId: string | null; readonly count: number }[];
+  readonly lastPaymentAt: string | null;
 }
 
 export interface FacilitatorSummaryResponse {
@@ -40,10 +41,14 @@ export interface FacilitatorSummaryResponse {
   readonly uniqueSellers: number;
   readonly firstSeen: string;
   readonly lastSeen: string;
+  readonly topVolume: { readonly assetContract: string; readonly total: string } | null;
 }
 
 export interface FacilitatorListResponse {
   readonly items: readonly FacilitatorSummaryResponse[];
+  /** How many facilitators we actually hold a verified signer key for - a static, honest count,
+   * not a self-serve registry size. */
+  readonly registeredCount: number;
 }
 
 export interface AssetVolumeResponse {
@@ -63,6 +68,8 @@ export interface SellerSummaryResponse {
 export interface SellerListResponse {
   readonly items: readonly SellerSummaryResponse[];
   readonly pagination: { readonly limit: number; readonly offset: number; readonly hasMore: boolean };
+  /** Distinct sellers seen in the last 7 days - computed over the whole dataset, not just this page. */
+  readonly activeLast7Days: number;
 }
 
 export interface AssetSummaryResponse {
@@ -74,6 +81,7 @@ export interface AssetSummaryResponse {
 
 export interface AssetListResponse {
   readonly items: readonly AssetSummaryResponse[];
+  readonly settledLast30Days: number;
 }
 
 export interface EcosystemTimeseriesResponse {

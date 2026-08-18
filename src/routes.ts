@@ -8,6 +8,10 @@ import type {
   StatsResponse,
 } from "./api-types.js";
 import type { ExplorerStore, PaymentRow } from "./db.js";
+import { registeredFacilitatorCount } from "./registry.js";
+
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -48,6 +52,15 @@ function parseLimit(raw: unknown): number | undefined {
   return parseBoundedInt(raw, DEFAULT_LIMIT, MAX_LIMIT);
 }
 
+/** Wire convention for the facilitator filter: absent = no filter, the literal string
+ * "unattributed" = filter to unattributed-only (facilitator_id IS NULL), anything else = that
+ * specific facilitator id. "unattributed" can never collide with a real id - registry.ts ids come
+ * from a hardcoded, human-chosen set that avoids it. */
+function parseFacilitatorFilter(raw: string | undefined): string | null | undefined {
+  if (raw === undefined) return undefined;
+  return raw === "unattributed" ? null : raw;
+}
+
 export function registerRoutes(app: FastifyInstance, store: ExplorerStore): void {
   app.get("/health", async () => ({ status: "ok" }));
 
@@ -59,6 +72,7 @@ export function registerRoutes(app: FastifyInstance, store: ExplorerStore): void
       uniqueSellers: stats.uniqueSellers,
       topAsset: stats.topAsset ?? null,
       facilitatorBreakdown: stats.facilitatorBreakdown,
+      lastPaymentAt: stats.lastPaymentAt ?? null,
     };
   });
 
@@ -71,10 +85,11 @@ export function registerRoutes(app: FastifyInstance, store: ExplorerStore): void
         error: { code: "invalid_limit", message: `limit must be an integer between 1 and ${MAX_LIMIT}` },
       });
     }
+    const facilitatorFilter = parseFacilitatorFilter(request.query.facilitator);
     const result = await store.listPayments({
       limit,
       ...(request.query.cursor !== undefined ? { cursor: request.query.cursor } : {}),
-      ...(request.query.facilitator !== undefined ? { facilitatorId: request.query.facilitator } : {}),
+      ...(facilitatorFilter !== undefined ? { facilitatorId: facilitatorFilter } : {}),
       ...(request.query.payTo !== undefined ? { payTo: request.query.payTo } : {}),
     });
     return {
@@ -94,8 +109,19 @@ export function registerRoutes(app: FastifyInstance, store: ExplorerStore): void
   });
 
   app.get("/facilitators", async (): Promise<FacilitatorListResponse> => {
-    const items = await store.getFacilitatorSummaries();
-    return { items };
+    const summaries = await store.getFacilitatorSummaries();
+    return {
+      items: summaries.map(s => ({
+        facilitatorId: s.facilitatorId,
+        paymentCount: s.paymentCount,
+        uniqueBuyers: s.uniqueBuyers,
+        uniqueSellers: s.uniqueSellers,
+        firstSeen: s.firstSeen,
+        lastSeen: s.lastSeen,
+        topVolume: s.topVolume ?? null,
+      })),
+      registeredCount: registeredFacilitatorCount(),
+    };
   });
 
   app.get<{ Querystring: { limit?: string; offset?: string } }>("/sellers", async (request, reply) => {
@@ -109,17 +135,24 @@ export function registerRoutes(app: FastifyInstance, store: ExplorerStore): void
     if (offset === undefined) {
       return reply.code(400).send({ error: { code: "invalid_offset", message: "offset must be a non-negative integer" } });
     }
-    const result = await store.listSellers(limit, offset);
+    const [result, activeLast7Days] = await Promise.all([
+      store.listSellers(limit, offset),
+      store.countDistinctSellersSince(new Date(Date.now() - SEVEN_DAYS_MS).toISOString()),
+    ]);
     const response: SellerListResponse = {
       items: result.items,
       pagination: { limit, offset, hasMore: result.hasMore },
+      activeLast7Days,
     };
     return response;
   });
 
   app.get("/assets", async (): Promise<AssetListResponse> => {
-    const items = await store.listAssets();
-    return { items };
+    const [items, settledLast30Days] = await Promise.all([
+      store.listAssets(),
+      store.countPaymentsSince(new Date(Date.now() - THIRTY_DAYS_MS).toISOString()),
+    ]);
+    return { items, settledLast30Days };
   });
 
   app.get("/ecosystem/timeseries", async (): Promise<EcosystemTimeseriesResponse> => {

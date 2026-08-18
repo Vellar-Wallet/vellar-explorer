@@ -1,5 +1,7 @@
-import { getStats, listPayments } from "../lib/api";
-import { short, stellarExpertAccountUrl, stellarExpertTxUrl, toDecimal } from "../lib/format";
+import { getFacilitators, getStats, listPayments } from "../lib/api";
+import { assetLabel, formatAge, short, stellarExpertAccountUrl, stellarExpertTxUrl, toDecimal } from "../lib/format";
+import { ShareBar } from "./components/ShareBar";
+import { CopyButton } from "./components/CopyButton";
 
 export const dynamic = "force-dynamic"; // always live — never statically cache this page
 
@@ -23,7 +25,7 @@ export default async function FeedPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  const [stats, payments] = await Promise.all([
+  const [stats, payments, facilitators] = await Promise.all([
     getStats(),
     listPayments({
       limit: 50,
@@ -31,6 +33,7 @@ export default async function FeedPage({
       ...(params.facilitator ? { facilitator: params.facilitator } : {}),
       ...(params.payTo ? { payTo: params.payTo } : {}),
     }),
+    getFacilitators(),
   ]);
 
   const nextHref = payments.pagination.nextCursor
@@ -44,50 +47,43 @@ export default async function FeedPage({
   return (
     <main>
       <header className="page-header">
-        <h1>x402 Payment Explorer — Stellar</h1>
-        <p>
-          Live x402 payments observed on Stellar testnet, across any facilitator. Attribution is a
-          best guess from known signer keys — unattributed traffic is shown, not hidden.
-        </p>
+        <h1>The public record of x402 payments on Stellar.</h1>
+        <p>Every payment, live from the ledger. Who paid, who got paid, who settled it.</p>
       </header>
 
       <section className="stats-grid">
         <div className="stat-card">
-          <div className="label">Total Payments</div>
+          <div className="label">Payments Indexed</div>
           <div className="value">{stats.totalPayments.toLocaleString()}</div>
         </div>
         <div className="stat-card">
-          <div className="label">Unique Buyers</div>
+          <div className="label">Top Asset — {stats.topAsset ? assetLabel(stats.topAsset.assetContract) : "—"}</div>
+          <div className="value">{stats.topAsset?.count.toLocaleString() ?? "—"}</div>
+        </div>
+        <div className="stat-card">
+          <div className="label">Buyers</div>
           <div className="value">{stats.uniqueBuyers.toLocaleString()}</div>
         </div>
         <div className="stat-card">
-          <div className="label">Unique Sellers</div>
+          <div className="label">Sellers</div>
           <div className="value">{stats.uniqueSellers.toLocaleString()}</div>
-        </div>
-        <div className="stat-card">
-          <div className="label">Top Asset</div>
-          <div className="value small" title={stats.topAsset?.assetContract ?? ""}>
-            {stats.topAsset ? short(stats.topAsset.assetContract) : "—"}
-          </div>
         </div>
       </section>
 
       <section className="breakdown">
-        <h2>Facilitator Breakdown</h2>
-        {stats.facilitatorBreakdown.length === 0 ? (
-          <div className="empty">No payments indexed yet.</div>
-        ) : (
-          stats.facilitatorBreakdown.map(entry => (
-            <div className="breakdown-row" key={entry.facilitatorId ?? "unattributed"}>
-              {facilitatorBadge(entry.facilitatorId)}
-              <span>{entry.count.toLocaleString()} payment(s)</span>
-            </div>
-          ))
-        )}
+        <h2>Who Settled It</h2>
+        <ShareBar entries={stats.facilitatorBreakdown} />
       </section>
 
       <form className="filters" action="/" method="get">
-        <input type="text" name="facilitator" placeholder="Filter by facilitator id" defaultValue={params.facilitator ?? ""} />
+        <select name="facilitator" defaultValue={params.facilitator ?? ""}>
+          <option value="">All facilitators</option>
+          {facilitators.items.map(f => (
+            <option key={f.facilitatorId ?? "unattributed"} value={f.facilitatorId ?? "unattributed"}>
+              {f.facilitatorId ?? "Unattributed"} ({f.paymentCount.toLocaleString()})
+            </option>
+          ))}
+        </select>
         <input type="text" name="payTo" placeholder="Filter by seller (payTo) address" defaultValue={params.payTo ?? ""} />
         <button type="submit">Filter</button>
         {(params.facilitator || params.payTo) && <a className="clear" href="/">Clear</a>}
@@ -97,60 +93,63 @@ export default async function FeedPage({
         <table className="feed">
           <thead>
             <tr>
-              <th>Tx Hash</th>
-              <th>Ledger</th>
-              <th>Closed At</th>
-              <th>Buyer</th>
-              <th>Seller</th>
+              <th>Age</th>
+              <th>Tx</th>
+              <th>Buyer → Seller</th>
+              <th>Scheme</th>
+              <th>Settled By</th>
               <th>Amount</th>
-              <th>Asset</th>
-              <th>Pattern</th>
-              <th>Facilitator</th>
             </tr>
           </thead>
           <tbody>
             {payments.items.length === 0 ? (
               <tr>
-                <td colSpan={9} className="empty">
+                <td colSpan={6} className="empty">
                   No payments match this filter.
                 </td>
               </tr>
             ) : (
               payments.items.map(p => (
                 <tr key={p.txHash}>
+                  <td title={p.closedAt}>{formatAge(p.closedAt)}</td>
                   <td>
                     <a href={stellarExpertTxUrl(p.txHash)} target="_blank" rel="noreferrer">
                       {short(p.txHash)}
                     </a>
+                    <CopyButton value={p.txHash} />
                   </td>
-                  <td>{p.ledger}</td>
-                  <td>{p.closedAt}</td>
                   <td>
                     <a href={stellarExpertAccountUrl(p.buyer)} target="_blank" rel="noreferrer" title={p.buyer}>
                       {short(p.buyer)}
                     </a>
-                  </td>
-                  <td>
+                    {" → "}
                     <a href={stellarExpertAccountUrl(p.seller)} target="_blank" rel="noreferrer" title={p.seller}>
                       {short(p.seller)}
                     </a>
                   </td>
-                  <td>{toDecimal(p.amount)}</td>
-                  <td title={p.assetContract}>{short(p.assetContract)}</td>
-                  <td>{p.feeBumped ? "fee-bump" : "plain tx"}</td>
+                  <td title={p.feeBumped ? "sponsored via a CAP-15 fee-bump wrapper" : "sponsored via a plain tx (sponsor as source)"}>
+                    EXACT
+                  </td>
                   <td>{facilitatorBadge(p.facilitator.id)}</td>
+                  <td>
+                    {toDecimal(p.amount)} {assetLabel(p.assetContract)}
+                  </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
+        {nextHref && (
+          <a href={nextHref} className="load-more">
+            Load more ↓
+          </a>
+        )}
       </div>
 
-      {nextHref && (
-        <div className="pagination">
-          <a href={nextHref}>Next page →</a>
-        </div>
-      )}
+      <p className="feed-caption">
+        <strong>Unattributed:</strong> a real on-chain x402 payment that no known facilitator signer
+        key claims — see the Facilitators tab for what "known" actually means here.
+      </p>
     </main>
   );
 }
