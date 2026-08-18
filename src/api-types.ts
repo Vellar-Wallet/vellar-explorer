@@ -32,3 +32,55 @@ export interface StatsResponse {
   readonly topAsset: { readonly assetContract: string; readonly count: number } | null;
   readonly facilitatorBreakdown: readonly { readonly facilitatorId: string | null; readonly count: number }[];
 }
+
+export interface FacilitatorSummaryResponse {
+  readonly facilitatorId: string | null;
+  readonly paymentCount: number;
+  readonly uniqueBuyers: number;
+  readonly uniqueSellers: number;
+  readonly firstSeen: string;
+  readonly lastSeen: string;
+}
+
+export interface FacilitatorListResponse {
+  readonly items: readonly FacilitatorSummaryResponse[];
+}
+
+export interface AssetVolumeResponse {
+  readonly assetContract: string;
+  readonly total: string;
+}
+
+export interface SellerSummaryResponse {
+  readonly seller: string;
+  readonly paymentCount: number;
+  readonly uniqueBuyers: number;
+  readonly firstSeen: string;
+  readonly lastSeen: string;
+  readonly volumeByAsset: readonly AssetVolumeResponse[];
+}
+
+export interface SellerListResponse {
+  readonly items: readonly SellerSummaryResponse[];
+  readonly pagination: { readonly limit: number; readonly offset: number; readonly hasMore: boolean };
+}
+
+export interface AssetSummaryResponse {
+  readonly assetContract: string;
+  readonly paymentCount: number;
+  readonly uniqueSellers: number;
+  readonly totalVolume: string;
+}
+
+export interface AssetListResponse {
+  readonly items: readonly AssetSummaryResponse[];
+}
+
+export interface EcosystemTimeseriesResponse {
+  readonly bucket: "day";
+  readonly buckets: readonly {
+    readonly date: string;
+    readonly totalPayments: number;
+    readonly byFacilitator: readonly { readonly facilitatorId: string | null; readonly count: number }[];
+  }[];
+}

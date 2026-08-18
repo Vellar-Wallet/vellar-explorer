@@ -6,3 +6,5 @@ dist/
 data/
 web/.next/
 web/next-env.d.ts
+web/*.tsbuildinfo
+*.pid

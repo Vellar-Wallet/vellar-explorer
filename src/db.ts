@@ -59,6 +59,49 @@ export interface Stats {
   readonly facilitatorBreakdown: readonly FacilitatorBreakdownEntry[];
 }
 
+export interface FacilitatorSummary {
+  readonly facilitatorId: string | null;
+  readonly paymentCount: number;
+  readonly uniqueBuyers: number;
+  readonly uniqueSellers: number;
+  readonly firstSeen: string;
+  readonly lastSeen: string;
+}
+
+export interface AssetVolume {
+  readonly assetContract: string;
+  /** Stroops, summed in SQL as a 64-bit integer then cast back to TEXT before it reaches JS — see
+   * getStats-adjacent methods below for why this is a different risk class from PaymentInput.amount. */
+  readonly total: string;
+}
+
+export interface SellerSummary {
+  readonly seller: string;
+  readonly paymentCount: number;
+  readonly uniqueBuyers: number;
+  readonly firstSeen: string;
+  readonly lastSeen: string;
+  readonly volumeByAsset: readonly AssetVolume[];
+}
+
+export interface SellerListResult {
+  readonly items: readonly SellerSummary[];
+  readonly hasMore: boolean;
+}
+
+export interface AssetSummary {
+  readonly assetContract: string;
+  readonly paymentCount: number;
+  readonly uniqueSellers: number;
+  readonly totalVolume: string;
+}
+
+export interface EcosystemBucket {
+  readonly date: string;
+  readonly totalPayments: number;
+  readonly byFacilitator: readonly FacilitatorBreakdownEntry[];
+}
+
 interface CursorKey {
   readonly closedAt: string;
   readonly txHash: string;
@@ -225,6 +268,108 @@ export class ExplorerStore {
       topAsset,
       facilitatorBreakdown,
     };
+  }
+
+  async getFacilitatorSummaries(): Promise<FacilitatorSummary[]> {
+    const result = await this.client.execute(
+      `SELECT facilitator_id, COUNT(*) as n, COUNT(DISTINCT buyer) as buyers,
+              COUNT(DISTINCT seller) as sellers, MIN(closed_at) as first_seen, MAX(closed_at) as last_seen
+       FROM payments GROUP BY facilitator_id ORDER BY n DESC`,
+    );
+    return result.rows.map(row => ({
+      facilitatorId: row["facilitator_id"] === null ? null : String(row["facilitator_id"]),
+      paymentCount: Number(row["n"]),
+      uniqueBuyers: Number(row["buyers"]),
+      uniqueSellers: Number(row["sellers"]),
+      firstSeen: String(row["first_seen"]),
+      lastSeen: String(row["last_seen"]),
+    }));
+  }
+
+  /** Plain limit/offset, not the Feed's keyset cursor — this is a secondary aggregate view where
+   * a row shifting slightly across a reload is an acceptable tradeoff for the simpler query. */
+  async listSellers(limit: number, offset: number): Promise<SellerListResult> {
+    const pageResult = await this.client.execute({
+      sql: `SELECT seller, COUNT(*) as n, COUNT(DISTINCT buyer) as buyers,
+                   MIN(closed_at) as first_seen, MAX(closed_at) as last_seen
+            FROM payments GROUP BY seller ORDER BY n DESC, seller ASC LIMIT ? OFFSET ?`,
+      args: [limit + 1, offset],
+    });
+    const rows = pageResult.rows;
+    const hasMore = rows.length > limit;
+    const pageRows = hasMore ? rows.slice(0, limit) : rows;
+    const sellers = pageRows.map(row => String(row["seller"]));
+
+    const volumeBySeller = new Map<string, AssetVolume[]>();
+    if (sellers.length > 0) {
+      const placeholders = sellers.map(() => "?").join(",");
+      const volumeResult = await this.client.execute({
+        sql: `SELECT seller, asset_contract, CAST(SUM(CAST(amount AS INTEGER)) AS TEXT) as total
+              FROM payments WHERE seller IN (${placeholders}) GROUP BY seller, asset_contract`,
+        args: sellers,
+      });
+      for (const row of volumeResult.rows) {
+        const seller = String(row["seller"]);
+        const entry: AssetVolume = { assetContract: String(row["asset_contract"]), total: String(row["total"]) };
+        const list = volumeBySeller.get(seller);
+        if (list) list.push(entry);
+        else volumeBySeller.set(seller, [entry]);
+      }
+    }
+
+    const items: SellerSummary[] = pageRows.map(row => {
+      const seller = String(row["seller"]);
+      return {
+        seller,
+        paymentCount: Number(row["n"]),
+        uniqueBuyers: Number(row["buyers"]),
+        firstSeen: String(row["first_seen"]),
+        lastSeen: String(row["last_seen"]),
+        volumeByAsset: volumeBySeller.get(seller) ?? [],
+      };
+    });
+    return { items, hasMore };
+  }
+
+  async listAssets(): Promise<AssetSummary[]> {
+    const result = await this.client.execute(
+      `SELECT asset_contract, COUNT(*) as n, COUNT(DISTINCT seller) as sellers,
+              CAST(SUM(CAST(amount AS INTEGER)) AS TEXT) as total
+       FROM payments GROUP BY asset_contract ORDER BY n DESC`,
+    );
+    return result.rows.map(row => ({
+      assetContract: String(row["asset_contract"]),
+      paymentCount: Number(row["n"]),
+      uniqueSellers: Number(row["sellers"]),
+      totalVolume: String(row["total"]),
+    }));
+  }
+
+  /** Daily buckets only for v1 — `bucket` param threaded through now so a weekly/hourly option
+   * doesn't require an API shape change later, even though only "day" is implemented. */
+  async getEcosystemTimeseries(): Promise<EcosystemBucket[]> {
+    const result = await this.client.execute(
+      `SELECT strftime('%Y-%m-%d', closed_at) as day, facilitator_id, COUNT(*) as n
+       FROM payments GROUP BY day, facilitator_id ORDER BY day ASC`,
+    );
+    const byDay = new Map<string, FacilitatorBreakdownEntry[]>();
+    for (const row of result.rows) {
+      const day = String(row["day"]);
+      const entry: FacilitatorBreakdownEntry = {
+        facilitatorId: row["facilitator_id"] === null ? null : String(row["facilitator_id"]),
+        count: Number(row["n"]),
+      };
+      const list = byDay.get(day);
+      if (list) list.push(entry);
+      else byDay.set(day, [entry]);
+    }
+    return [...byDay.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([date, byFacilitator]) => ({
+        date,
+        totalPayments: byFacilitator.reduce((sum, e) => sum + e.count, 0),
+        byFacilitator,
+      }));
   }
 
   async getCursor(network: string): Promise<CursorState | undefined> {
