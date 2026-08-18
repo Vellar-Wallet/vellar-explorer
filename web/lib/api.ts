@@ -8,7 +8,7 @@ import type {
   SellerListResponse,
   StatsResponse,
   TimeWindowParam,
-} from "../../src/api-types.js";
+} from "./api-types.js";
 
 export type { TimeWindowParam };
 
