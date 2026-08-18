@@ -24,7 +24,7 @@ export default async function AssetsPage() {
         <div className="stat-card">
           <div className="label">Top Asset</div>
           <div className="value small">
-            {top ? `${assetLabel(top.assetContract)} — ${((top.paymentCount / total) * 100).toFixed(0)}%` : "—"}
+            {top ? `${assetLabel(top.assetContract, top.assetSymbol)} — ${((top.paymentCount / total) * 100).toFixed(0)}%` : "—"}
           </div>
         </div>
         <div className="stat-card">
@@ -70,7 +70,7 @@ export default async function AssetsPage() {
                 return (
                   <tr key={a.assetContract}>
                     <td className="rank-cell">{rank(i + 1)}</td>
-                    <td className="row-title">{assetLabel(a.assetContract)}</td>
+                    <td className="row-title">{assetLabel(a.assetContract, a.assetSymbol)}</td>
                     <td>
                       <a href={stellarExpertAccountUrl(a.assetContract)} target="_blank" rel="noreferrer" title={a.assetContract}>
                         {short(a.assetContract)}
@@ -86,7 +86,7 @@ export default async function AssetsPage() {
                     <td>{a.paymentCount.toLocaleString()}</td>
                     <td>{a.uniqueSellers.toLocaleString()}</td>
                     <td>
-                      {toDecimal(a.totalVolume)} {assetLabel(a.assetContract)}
+                      {toDecimal(a.totalVolume)} {assetLabel(a.assetContract, a.assetSymbol)}
                     </td>
                   </tr>
                 );

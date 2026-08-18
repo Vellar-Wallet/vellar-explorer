@@ -57,7 +57,7 @@ export default async function FeedPage({
           <div className="value">{stats.totalPayments.toLocaleString()}</div>
         </div>
         <div className="stat-card">
-          <div className="label">Top Asset — {stats.topAsset ? assetLabel(stats.topAsset.assetContract) : "—"}</div>
+          <div className="label">Top Asset — {stats.topAsset ? assetLabel(stats.topAsset.assetContract, stats.topAsset.assetSymbol) : "—"}</div>
           <div className="value">{stats.topAsset?.count.toLocaleString() ?? "—"}</div>
         </div>
         <div className="stat-card">
@@ -132,7 +132,7 @@ export default async function FeedPage({
                   </td>
                   <td>{facilitatorBadge(p.facilitator.id)}</td>
                   <td>
-                    {toDecimal(p.amount)} {assetLabel(p.assetContract)}
+                    {toDecimal(p.amount)} {assetLabel(p.assetContract, p.assetSymbol)}
                   </td>
                 </tr>
               ))

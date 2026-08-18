@@ -4,6 +4,7 @@ import { classifyTransaction } from "./classify.js";
 import type { ExplorerStore } from "./db.js";
 import { attributeFacilitator } from "./registry.js";
 import { getEvents, getHealth, getTransaction } from "./rpc.js";
+import { resolveAssetSymbol } from "./symbol.js";
 
 export interface IndexerCounters {
   polls: number;
@@ -134,6 +135,15 @@ export class IndexerWorker {
           inserted += 1;
           this.counters.inserted += 1;
         }
+        // Isolated from the outer catch on purpose: a symbol-resolution hiccup is cosmetic (the
+        // asset just displays as a truncated contract until the next successful attempt) and must
+        // never set anyFetchFailed, which would hold the cursor back for a real ingestion problem.
+        await this.resolveSymbolIfNeeded(match.assetContract).catch(error => {
+          console.warn(
+            `[indexer] symbol resolution failed for ${match.assetContract}:`,
+            error instanceof Error ? error.message : error,
+          );
+        });
       } catch (error) {
         anyFetchFailed = true;
         this.counters.errors += 1;
@@ -152,5 +162,15 @@ export class IndexerWorker {
     }
 
     return { candidates: hashes.size, matched, inserted };
+  }
+
+  /** Resolves and caches an asset's on-chain symbol() the first time this contract is seen; every
+   * later payment on the same asset is a cheap cache hit (getAssetSymbol), not a new RPC round
+   * trip. */
+  private async resolveSymbolIfNeeded(assetContract: string): Promise<void> {
+    const cached = await this.store.getAssetSymbol(assetContract);
+    if (cached !== undefined) return; // already attempted (found a symbol, or confirmed none)
+    const symbol = await resolveAssetSymbol(this.config.network.rpcUrl, this.config.network.passphrase, assetContract);
+    await this.store.setAssetSymbol(assetContract, symbol ?? null);
   }
 }

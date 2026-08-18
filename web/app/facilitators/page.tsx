@@ -109,7 +109,7 @@ export default async function FacilitatorsPage() {
                   <td>{unattributed.uniqueSellers.toLocaleString()}</td>
                   <td>
                     {unattributed.topVolume
-                      ? `${toDecimal(unattributed.topVolume.total)} ${assetLabel(unattributed.topVolume.assetContract)}`
+                      ? `${toDecimal(unattributed.topVolume.total)} ${assetLabel(unattributed.topVolume.assetContract, unattributed.topVolume.assetSymbol)}`
                       : "—"}
                   </td>
                   <td>{formatAge(unattributed.lastSeen)} ago</td>
@@ -132,7 +132,7 @@ export default async function FacilitatorsPage() {
                     <td>{f.paymentCount.toLocaleString()}</td>
                     <td>{f.uniqueBuyers.toLocaleString()}</td>
                     <td>{f.uniqueSellers.toLocaleString()}</td>
-                    <td>{f.topVolume ? `${toDecimal(f.topVolume.total)} ${assetLabel(f.topVolume.assetContract)}` : "—"}</td>
+                    <td>{f.topVolume ? `${toDecimal(f.topVolume.total)} ${assetLabel(f.topVolume.assetContract, f.topVolume.assetSymbol)}` : "—"}</td>
                     <td>{formatAge(f.lastSeen)} ago</td>
                   </tr>
                 ))

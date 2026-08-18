@@ -159,6 +159,14 @@ const SCHEMA = [
      last_ledger  INTEGER NOT NULL,
      updated_at   TEXT NOT NULL
    )`,
+  // symbol NULL = resolution was attempted and found nothing (not a standard SEP-41 token, or the
+  // RPC call failed) - a row existing at all is what prevents re-attempting on every payment for a
+  // persistently-unresolvable contract. Absence of a row means "never attempted."
+  `CREATE TABLE IF NOT EXISTS asset_symbols (
+     asset_contract  TEXT PRIMARY KEY,
+     symbol          TEXT,
+     resolved_at     TEXT NOT NULL
+   )`,
 ];
 
 export class ExplorerStore {
@@ -451,6 +459,38 @@ export class ExplorerStore {
               last_ledger = excluded.last_ledger, updated_at = excluded.updated_at`,
       args: [network, state.cursor ?? null, state.lastLedger, now().toISOString()],
     });
+  }
+
+  /** undefined = never attempted (no row); null = attempted, no symbol found; string = resolved. */
+  async getAssetSymbol(assetContract: string): Promise<string | null | undefined> {
+    const result = await this.client.execute({
+      sql: "SELECT symbol FROM asset_symbols WHERE asset_contract = ?",
+      args: [assetContract],
+    });
+    const row = result.rows[0];
+    if (!row) return undefined;
+    const symbol = row["symbol"];
+    return symbol === null ? null : String(symbol);
+  }
+
+  async setAssetSymbol(assetContract: string, symbol: string | null, now: () => Date = () => new Date()): Promise<void> {
+    await this.client.execute({
+      sql: `INSERT INTO asset_symbols (asset_contract, symbol, resolved_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(asset_contract) DO UPDATE SET symbol = excluded.symbol, resolved_at = excluded.resolved_at`,
+      args: [assetContract, symbol, now().toISOString()],
+    });
+  }
+
+  /** All cached symbols in one map, for enrichment reads (assets/sellers/facilitators list
+   * endpoints) that need to label many contracts without one query each. */
+  async getAllAssetSymbols(): Promise<ReadonlyMap<string, string>> {
+    const result = await this.client.execute("SELECT asset_contract, symbol FROM asset_symbols WHERE symbol IS NOT NULL");
+    const map = new Map<string, string>();
+    for (const row of result.rows) {
+      map.set(String(row["asset_contract"]), String(row["symbol"]));
+    }
+    return map;
   }
 }
 

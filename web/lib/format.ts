@@ -18,10 +18,14 @@ export function short(address: string): string {
 
 /** Duplicated from src/config.ts's TESTNET.usdcSac on purpose, for display labeling only - web/
  * never imports backend runtime code (only type-only api-types), and this is a public, stable,
- * well-known contract address, not something that needs to stay wired to the backend's config. */
+ * well-known contract address, not something that needs to stay wired to the backend's config.
+ * Used only as a fallback for the brief window before the indexer resolves a symbol on-chain
+ * (src/symbol.ts) - once `symbol` is populated, that's the real answer, the same way rail402's
+ * own explorer labels assets: off the token itself, not a name/metadata service. */
 const KNOWN_USDC_SAC = "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA";
 
-export function assetLabel(assetContract: string): string {
+export function assetLabel(assetContract: string, symbol?: string | null): string {
+  if (symbol) return symbol;
   return assetContract === KNOWN_USDC_SAC ? "USDC" : short(assetContract);
 }
 

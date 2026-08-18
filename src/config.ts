@@ -6,6 +6,9 @@ export interface NetworkConfig {
   readonly network: string;
   readonly rpcUrl: string;
   readonly horizonUrl: string;
+  /** Needed to build a well-formed (never-submitted) transaction for read-only contract calls,
+   * e.g. resolving an asset's on-chain symbol() in symbol.ts. */
+  readonly passphrase: string;
   /** The asset this v1 heuristic watches. Widened later; USDC only for now. */
   readonly usdcSac: string;
 }
@@ -14,6 +17,7 @@ export const TESTNET: NetworkConfig = {
   network: "stellar:testnet",
   rpcUrl: "https://soroban-testnet.stellar.org",
   horizonUrl: "https://horizon-testnet.stellar.org",
+  passphrase: "Test SDF Network ; September 2015",
   // Verified against vellar-facilitator's own demo pair (docs/accounts.md):
   // issuer GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5 (Circle, centre.io).
   usdcSac: "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",

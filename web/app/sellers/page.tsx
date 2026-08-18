@@ -94,7 +94,7 @@ export default async function SellersPage({ searchParams }: { searchParams: Prom
                   <td>
                     {s.volumeByAsset.map(v => (
                       <div key={v.assetContract}>
-                        {toDecimal(v.total)} {assetLabel(v.assetContract)}
+                        {toDecimal(v.total)} {assetLabel(v.assetContract, v.assetSymbol)}
                       </div>
                     ))}
                   </td>

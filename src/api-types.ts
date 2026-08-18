@@ -13,6 +13,9 @@ export interface PaymentResponse {
   readonly sponsor: string;
   readonly amount: string;
   readonly assetContract: string;
+  /** The asset's real on-chain symbol() - null until resolved (or if it isn't a standard SEP-41
+   * token). Same source as rail402's own labeling: the token itself, not a name/metadata service. */
+  readonly assetSymbol: string | null;
   readonly feeBumped: boolean;
   readonly facilitator: {
     readonly id: string | null;
@@ -29,7 +32,7 @@ export interface StatsResponse {
   readonly totalPayments: number;
   readonly uniqueBuyers: number;
   readonly uniqueSellers: number;
-  readonly topAsset: { readonly assetContract: string; readonly count: number } | null;
+  readonly topAsset: { readonly assetContract: string; readonly assetSymbol: string | null; readonly count: number } | null;
   readonly facilitatorBreakdown: readonly { readonly facilitatorId: string | null; readonly count: number }[];
   readonly lastPaymentAt: string | null;
 }
@@ -41,7 +44,7 @@ export interface FacilitatorSummaryResponse {
   readonly uniqueSellers: number;
   readonly firstSeen: string;
   readonly lastSeen: string;
-  readonly topVolume: { readonly assetContract: string; readonly total: string } | null;
+  readonly topVolume: AssetVolumeResponse | null;
 }
 
 export interface FacilitatorListResponse {
@@ -53,6 +56,7 @@ export interface FacilitatorListResponse {
 
 export interface AssetVolumeResponse {
   readonly assetContract: string;
+  readonly assetSymbol: string | null;
   readonly total: string;
 }
 
@@ -74,6 +78,7 @@ export interface SellerListResponse {
 
 export interface AssetSummaryResponse {
   readonly assetContract: string;
+  readonly assetSymbol: string | null;
   readonly paymentCount: number;
   readonly uniqueSellers: number;
   readonly totalVolume: string;

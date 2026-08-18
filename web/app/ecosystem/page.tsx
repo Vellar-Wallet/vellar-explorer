@@ -26,7 +26,7 @@ export default async function EcosystemPage() {
           <div className="value">{stats.totalPayments.toLocaleString()}</div>
         </div>
         <div className="stat-card">
-          <div className="label">Top Asset — {stats.topAsset ? assetLabel(stats.topAsset.assetContract) : "—"}</div>
+          <div className="label">Top Asset — {stats.topAsset ? assetLabel(stats.topAsset.assetContract, stats.topAsset.assetSymbol) : "—"}</div>
           <div className="value">{stats.topAsset?.count.toLocaleString() ?? "—"}</div>
         </div>
         <div className="stat-card">
@@ -107,7 +107,7 @@ export default async function EcosystemPage() {
                   <td>
                     {s.volumeByAsset.map(v => (
                       <div key={v.assetContract}>
-                        {toDecimal(v.total)} {assetLabel(v.assetContract)}
+                        {toDecimal(v.total)} {assetLabel(v.assetContract, v.assetSymbol)}
                       </div>
                     ))}
                   </td>
