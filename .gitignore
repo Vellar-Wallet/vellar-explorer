@@ -2,4 +2,7 @@ node_modules/
 dist/
 *.log
 .env
+.env*.local
 data/
+web/.next/
+web/next-env.d.ts

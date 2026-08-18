@@ -40,6 +40,25 @@ export interface ListResult {
   readonly nextCursor: string | undefined;
 }
 
+export interface FacilitatorBreakdownEntry {
+  /** null = unattributed, same convention as PaymentInput.facilitatorId. */
+  readonly facilitatorId: string | null;
+  readonly count: number;
+}
+
+export interface TopAsset {
+  readonly assetContract: string;
+  readonly count: number;
+}
+
+export interface Stats {
+  readonly totalPayments: number;
+  readonly uniqueBuyers: number;
+  readonly uniqueSellers: number;
+  readonly topAsset: TopAsset | undefined;
+  readonly facilitatorBreakdown: readonly FacilitatorBreakdownEntry[];
+}
+
 interface CursorKey {
   readonly closedAt: string;
   readonly txHash: string;
@@ -172,6 +191,40 @@ export class ExplorerStore {
     const last = items[items.length - 1];
     const nextCursor = hasMore && last ? encodeCursor({ closedAt: last.closedAt, txHash: last.txHash }) : undefined;
     return { items, nextCursor };
+  }
+
+  /** Five independent aggregate queries, run in parallel — each is a simple scan over the
+   * existing schema, no new tables or precomputed rollups needed at this scale. */
+  async getStats(): Promise<Stats> {
+    const [totalResult, buyersResult, sellersResult, topAssetResult, breakdownResult] = await Promise.all([
+      this.client.execute("SELECT COUNT(*) as n FROM payments"),
+      this.client.execute("SELECT COUNT(DISTINCT buyer) as n FROM payments"),
+      this.client.execute("SELECT COUNT(DISTINCT seller) as n FROM payments"),
+      this.client.execute(
+        "SELECT asset_contract, COUNT(*) as n FROM payments GROUP BY asset_contract ORDER BY n DESC LIMIT 1",
+      ),
+      this.client.execute(
+        "SELECT facilitator_id, COUNT(*) as n FROM payments GROUP BY facilitator_id ORDER BY n DESC",
+      ),
+    ]);
+
+    const topAssetRow = topAssetResult.rows[0];
+    const topAsset: TopAsset | undefined = topAssetRow
+      ? { assetContract: String(topAssetRow["asset_contract"]), count: Number(topAssetRow["n"]) }
+      : undefined;
+
+    const facilitatorBreakdown: FacilitatorBreakdownEntry[] = breakdownResult.rows.map(row => ({
+      facilitatorId: row["facilitator_id"] === null ? null : String(row["facilitator_id"]),
+      count: Number(row["n"]),
+    }));
+
+    return {
+      totalPayments: Number(totalResult.rows[0]?.["n"] ?? 0),
+      uniqueBuyers: Number(buyersResult.rows[0]?.["n"] ?? 0),
+      uniqueSellers: Number(sellersResult.rows[0]?.["n"] ?? 0),
+      topAsset,
+      facilitatorBreakdown,
+    };
   }
 
   async getCursor(network: string): Promise<CursorState | undefined> {

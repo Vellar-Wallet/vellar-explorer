@@ -1,27 +1,14 @@
 import type { FastifyInstance } from "fastify";
+import type { PaymentResponse, StatsResponse } from "./api-types.js";
 import type { ExplorerStore, PaymentRow } from "./db.js";
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 
-interface PaymentResponse {
-  readonly txHash: string;
-  readonly ledger: number;
-  readonly closedAt: string;
-  readonly buyer: string;
-  readonly seller: string;
-  readonly sponsor: string;
-  readonly amount: string;
-  readonly assetContract: string;
-  readonly feeBumped: boolean;
-  readonly facilitator: {
-    readonly id: string | null;
-    // Derived from facilitatorId alone: today every non-null id was written by the one
-    // known-signer check in registry.ts, so this mapping is exhaustive. Revisit if a future
-    // registry introduces more than two attribution tiers (e.g. self-reported-only).
-    readonly confidence: "matched-known-signer" | "unattributed";
-  };
-}
+// PaymentResponse.facilitator.confidence is derived from facilitatorId alone below: today every
+// non-null id was written by the one known-signer check in registry.ts, so the mapping is
+// exhaustive. Revisit if a future registry introduces more than two attribution tiers (e.g.
+// self-reported-only).
 
 function toResponse(row: PaymentRow): PaymentResponse {
   return {
@@ -50,6 +37,17 @@ function parseLimit(raw: unknown): number | undefined {
 
 export function registerRoutes(app: FastifyInstance, store: ExplorerStore): void {
   app.get("/health", async () => ({ status: "ok" }));
+
+  app.get("/stats", async (): Promise<StatsResponse> => {
+    const stats = await store.getStats();
+    return {
+      totalPayments: stats.totalPayments,
+      uniqueBuyers: stats.uniqueBuyers,
+      uniqueSellers: stats.uniqueSellers,
+      topAsset: stats.topAsset ?? null,
+      facilitatorBreakdown: stats.facilitatorBreakdown,
+    };
+  });
 
   app.get<{
     Querystring: { limit?: string; cursor?: string; facilitator?: string; payTo?: string };
