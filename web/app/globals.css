@@ -345,6 +345,14 @@ table.feed td {
   color: var(--muted);
 }
 
+/* A row that's first by position but isn't "ranked" (e.g. Unattributed on Facilitators) - same
+ * treated background as the header, and a heavier bottom border so it visually reads as pinned
+ * above the ranked rows, not just first in a tie. */
+tr.pinned-row td {
+  background: color-mix(in srgb, var(--neo-bg) 60%, transparent);
+  border-bottom: 2px solid var(--line);
+}
+
 table.feed tr:last-child td {
   border-bottom: none;
 }

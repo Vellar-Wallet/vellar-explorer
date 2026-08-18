@@ -1,11 +1,16 @@
 import type {
   AssetListResponse,
+  AssetStatsResponse,
+  AssetTimeseriesResponse,
   EcosystemTimeseriesResponse,
   FacilitatorListResponse,
   PaymentListResponse,
   SellerListResponse,
   StatsResponse,
+  TimeWindowParam,
 } from "../../src/api-types.js";
+
+export type { TimeWindowParam };
 
 /**
  * The ONLY way this app touches data. Every call here is a plain fetch against the explorer API
@@ -64,10 +69,46 @@ export async function listSellers(params: ListSellersParams): Promise<SellerList
   return (await res.json()) as SellerListResponse;
 }
 
-export async function getAssets(): Promise<AssetListResponse> {
-  const res = await fetch(`${apiUrl()}/assets`, { cache: "no-store" });
+export interface GetAssetsParams {
+  readonly window?: TimeWindowParam;
+  readonly page?: number;
+}
+
+export async function getAssets(params: GetAssetsParams = {}): Promise<AssetListResponse> {
+  const qs = new URLSearchParams();
+  if (params.window !== undefined) qs.set("window", params.window);
+  if (params.page !== undefined) qs.set("page", String(params.page));
+  const res = await fetch(`${apiUrl()}/assets?${qs.toString()}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`GET /assets returned HTTP ${res.status}`);
   return (await res.json()) as AssetListResponse;
+}
+
+export async function getAssetStats(contract: string): Promise<AssetStatsResponse> {
+  const res = await fetch(`${apiUrl()}/assets/${encodeURIComponent(contract)}/stats`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`GET /assets/:contract/stats returned HTTP ${res.status}`);
+  return (await res.json()) as AssetStatsResponse;
+}
+
+export async function getAssetTimeseries(contract: string): Promise<AssetTimeseriesResponse> {
+  const res = await fetch(`${apiUrl()}/assets/${encodeURIComponent(contract)}/timeseries`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`GET /assets/:contract/timeseries returned HTTP ${res.status}`);
+  return (await res.json()) as AssetTimeseriesResponse;
+}
+
+export interface ListAssetPaymentsParams {
+  readonly limit?: number;
+  readonly cursor?: string;
+}
+
+export async function listAssetPayments(contract: string, params: ListAssetPaymentsParams): Promise<PaymentListResponse> {
+  const qs = new URLSearchParams();
+  if (params.limit !== undefined) qs.set("limit", String(params.limit));
+  if (params.cursor !== undefined) qs.set("cursor", params.cursor);
+  const res = await fetch(`${apiUrl()}/assets/${encodeURIComponent(contract)}/payments?${qs.toString()}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`GET /assets/:contract/payments returned HTTP ${res.status}`);
+  return (await res.json()) as PaymentListResponse;
 }
 
 export async function getEcosystemTimeseries(): Promise<EcosystemTimeseriesResponse> {

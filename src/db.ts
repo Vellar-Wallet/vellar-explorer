@@ -35,6 +35,7 @@ export interface ListFilter {
    * only; a string = filter to that specific known facilitator id. */
   readonly facilitatorId?: string | null;
   readonly payTo?: string;
+  readonly assetContract?: string;
 }
 
 export interface ListResult {
@@ -100,6 +101,33 @@ export interface AssetSummary {
   readonly paymentCount: number;
   readonly uniqueSellers: number;
   readonly totalVolume: string;
+}
+
+/** "all" = unfiltered (no closed_at lower bound). */
+export type TimeWindow = "24h" | "7d" | "30d" | "all";
+
+export interface WindowedAssetList {
+  readonly items: readonly AssetSummary[];
+  /** Distinct assets matching the window - NOT just this page; the count pagination needs. */
+  readonly totalDistinctAssets: number;
+  readonly topAsset: TopAsset | undefined;
+}
+
+export interface AssetStats {
+  readonly totalPayments: number;
+  readonly totalVolume: string;
+  readonly uniqueBuyers: number;
+  readonly uniqueSellers: number;
+  readonly firstPaymentAt: string | undefined;
+  readonly lastPaymentAt: string | undefined;
+}
+
+export interface AssetWindowStats {
+  readonly window: "24h" | "7d" | "30d";
+  readonly payments: number;
+  readonly volume: string;
+  readonly buyers: number;
+  readonly sellers: number;
 }
 
 export interface EcosystemBucket {
@@ -230,6 +258,10 @@ export class ExplorerStore {
     if (filter.payTo !== undefined) {
       conditions.push("seller = ?");
       args.push(filter.payTo);
+    }
+    if (filter.assetContract !== undefined) {
+      conditions.push("asset_contract = ?");
+      args.push(filter.assetContract);
     }
     if (filter.cursor !== undefined) {
       const key = decodeCursor(filter.cursor);
@@ -377,18 +409,95 @@ export class ExplorerStore {
     return { items, hasMore };
   }
 
-  async listAssets(): Promise<AssetSummary[]> {
-    const result = await this.client.execute(
-      `SELECT asset_contract, COUNT(*) as n, COUNT(DISTINCT seller) as sellers,
-              CAST(SUM(CAST(amount AS INTEGER)) AS TEXT) as total
-       FROM payments GROUP BY asset_contract ORDER BY n DESC`,
-    );
-    return result.rows.map(row => ({
+  /** Replaces the old unpaginated, unwindowed listAssets(): the Assets list page needs both a
+   * page (10/row pagination) and a re-scoped window (24H/7D/30D/All Time all changing what the
+   * table AND the header stats show, not just a label) - an asset with zero payments in the
+   * window simply doesn't appear, exactly like every other stat re-scoping. `sinceIso` is
+   * undefined for "all". */
+  async listAssetsWindowed(sinceIso: string | undefined, limit: number, offset: number): Promise<WindowedAssetList> {
+    const where = sinceIso !== undefined ? "WHERE closed_at >= ?" : "";
+    const args = sinceIso !== undefined ? [sinceIso] : [];
+
+    const [itemsResult, countResult, topResult] = await Promise.all([
+      this.client.execute({
+        sql: `SELECT asset_contract, COUNT(*) as n, COUNT(DISTINCT seller) as sellers,
+                     CAST(SUM(CAST(amount AS INTEGER)) AS TEXT) as total
+              FROM payments ${where} GROUP BY asset_contract ORDER BY n DESC LIMIT ? OFFSET ?`,
+        args: [...args, limit, offset],
+      }),
+      this.client.execute({ sql: `SELECT COUNT(DISTINCT asset_contract) as n FROM payments ${where}`, args }),
+      this.client.execute({
+        sql: `SELECT asset_contract, COUNT(*) as n FROM payments ${where} GROUP BY asset_contract ORDER BY n DESC LIMIT 1`,
+        args,
+      }),
+    ]);
+
+    const items: AssetSummary[] = itemsResult.rows.map(row => ({
       assetContract: String(row["asset_contract"]),
       paymentCount: Number(row["n"]),
       uniqueSellers: Number(row["sellers"]),
       totalVolume: String(row["total"]),
     }));
+    const topRow = topResult.rows[0];
+    const topAsset: TopAsset | undefined = topRow
+      ? { assetContract: String(topRow["asset_contract"]), count: Number(topRow["n"]) }
+      : undefined;
+
+    return { items, totalDistinctAssets: Number(countResult.rows[0]?.["n"] ?? 0), topAsset };
+  }
+
+  async getAssetStats(assetContract: string): Promise<AssetStats> {
+    const result = await this.client.execute({
+      sql: `SELECT COUNT(*) as n, CAST(SUM(CAST(amount AS INTEGER)) AS TEXT) as total,
+                   COUNT(DISTINCT buyer) as buyers, COUNT(DISTINCT seller) as sellers,
+                   MIN(closed_at) as first_at, MAX(closed_at) as last_at
+            FROM payments WHERE asset_contract = ?`,
+      args: [assetContract],
+    });
+    const row = result.rows[0];
+    const total = row?.["total"];
+    const firstAt = row?.["first_at"];
+    const lastAt = row?.["last_at"];
+    return {
+      totalPayments: Number(row?.["n"] ?? 0),
+      totalVolume: total === null || total === undefined ? "0" : String(total),
+      uniqueBuyers: Number(row?.["buyers"] ?? 0),
+      uniqueSellers: Number(row?.["sellers"] ?? 0),
+      firstPaymentAt: firstAt === null || firstAt === undefined ? undefined : String(firstAt),
+      lastPaymentAt: lastAt === null || lastAt === undefined ? undefined : String(lastAt),
+    };
+  }
+
+  /** All three matrix rows in one call, not three round trips - the page renders them
+   * simultaneously, so that's the natural unit of work here. */
+  async getAssetWindowMatrix(assetContract: string, now: () => Date = () => new Date()): Promise<AssetWindowStats[]> {
+    const windows: readonly { readonly window: "24h" | "7d" | "30d"; readonly ms: number }[] = [
+      { window: "24h", ms: 24 * 60 * 60 * 1000 },
+      { window: "7d", ms: 7 * 24 * 60 * 60 * 1000 },
+      { window: "30d", ms: 30 * 24 * 60 * 60 * 1000 },
+    ];
+    const results = await Promise.all(
+      windows.map(w => {
+        const sinceIso = new Date(now().getTime() - w.ms).toISOString();
+        return this.client.execute({
+          sql: `SELECT COUNT(*) as n, CAST(SUM(CAST(amount AS INTEGER)) AS TEXT) as total,
+                       COUNT(DISTINCT buyer) as buyers, COUNT(DISTINCT seller) as sellers
+                FROM payments WHERE asset_contract = ? AND closed_at >= ?`,
+          args: [assetContract, sinceIso],
+        });
+      }),
+    );
+    return windows.map((w, i) => {
+      const row = results[i]?.rows[0];
+      const total = row?.["total"];
+      return {
+        window: w.window,
+        payments: Number(row?.["n"] ?? 0),
+        volume: total === null || total === undefined ? "0" : String(total),
+        buyers: Number(row?.["buyers"] ?? 0),
+        sellers: Number(row?.["sellers"] ?? 0),
+      };
+    });
   }
 
   /** A single filtered COUNT, not the full trailing-window/growth-delta machinery a real "active

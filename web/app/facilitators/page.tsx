@@ -96,7 +96,7 @@ export default async function FacilitatorsPage() {
             </thead>
             <tbody>
               {unattributed && (
-                <tr>
+                <tr className="pinned-row">
                   <td className="rank-cell">—</td>
                   <td>
                     <span className="row-title">

@@ -1,23 +1,26 @@
 import type { FastifyInstance } from "fastify";
 import type {
   AssetListResponse,
+  AssetStatsResponse,
+  AssetTimeseriesResponse,
   AssetVolumeResponse,
   EcosystemTimeseriesResponse,
   FacilitatorListResponse,
   PaymentResponse,
   SellerListResponse,
   StatsResponse,
+  TimeWindowParam,
 } from "./api-types.js";
 import type { ExplorerStore, AssetVolume, PaymentRow } from "./db.js";
 import { registeredFacilitatorCount } from "./registry.js";
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 const DEFAULT_SELLER_LIMIT = 50;
 const MAX_SELLER_LIMIT = 200;
+const ASSET_PAGE_SIZE = 10; // matches rail402's own Assets-page row count
 
 // PaymentResponse.facilitator.confidence is derived from facilitatorId alone below: today every
 // non-null id was written by the one known-signer check in registry.ts, so the mapping is
@@ -65,6 +68,26 @@ function parseLimit(raw: unknown): number | undefined {
 function parseFacilitatorFilter(raw: string | undefined): string | null | undefined {
   if (raw === undefined) return undefined;
   return raw === "unattributed" ? null : raw;
+}
+
+const WINDOW_MS: Record<Exclude<TimeWindowParam, "all">, number> = {
+  "24h": 24 * 60 * 60 * 1000,
+  "7d": 7 * 24 * 60 * 60 * 1000,
+  "30d": 30 * 24 * 60 * 60 * 1000,
+};
+
+function parseWindow(raw: string | undefined): TimeWindowParam | undefined {
+  if (raw === undefined) return "all";
+  if (raw === "24h" || raw === "7d" || raw === "30d" || raw === "all") return raw;
+  return undefined;
+}
+
+/** undefined = no lower bound (the "all" window). The single source of truth for turning a
+ * TimeWindowParam into a closed_at cutoff - every route that re-scopes by window uses this, so
+ * "24H" means the same 24 hours everywhere in the API, not a slightly different one per route. */
+function windowSinceIso(window: TimeWindowParam, now: () => Date = () => new Date()): string | undefined {
+  if (window === "all") return undefined;
+  return new Date(now().getTime() - WINDOW_MS[window]).toISOString();
 }
 
 export function registerRoutes(app: FastifyInstance, store: ExplorerStore): void {
@@ -169,21 +192,89 @@ export function registerRoutes(app: FastifyInstance, store: ExplorerStore): void
     return response;
   });
 
-  app.get("/assets", async (): Promise<AssetListResponse> => {
-    const [items, settledLast30Days, symbols] = await Promise.all([
-      store.listAssets(),
-      store.countPaymentsSince(new Date(Date.now() - THIRTY_DAYS_MS).toISOString()),
+  app.get<{ Querystring: { window?: string; page?: string } }>("/assets", async (request, reply) => {
+    const window = parseWindow(request.query.window);
+    if (window === undefined) {
+      return reply.code(400).send({
+        error: { code: "invalid_window", message: "window must be one of 24h, 7d, 30d, all" },
+      });
+    }
+    const page = parseBoundedInt(request.query.page, 1, Number.MAX_SAFE_INTEGER, 1);
+    if (page === undefined) {
+      return reply.code(400).send({ error: { code: "invalid_page", message: "page must be a positive integer" } });
+    }
+    const offset = (page - 1) * ASSET_PAGE_SIZE;
+    const sinceIso = windowSinceIso(window);
+
+    const [windowed, settledInWindow, symbols] = await Promise.all([
+      store.listAssetsWindowed(sinceIso, ASSET_PAGE_SIZE, offset),
+      sinceIso !== undefined ? store.countPaymentsSince(sinceIso) : store.getStats().then(s => s.totalPayments),
       store.getAllAssetSymbols(),
     ]);
-    return {
-      items: items.map(a => ({
+
+    const response: AssetListResponse = {
+      items: windowed.items.map(a => ({
         assetContract: a.assetContract,
         assetSymbol: symbols.get(a.assetContract) ?? null,
         paymentCount: a.paymentCount,
         uniqueSellers: a.uniqueSellers,
         totalVolume: a.totalVolume,
       })),
-      settledLast30Days,
+      pagination: {
+        limit: ASSET_PAGE_SIZE,
+        offset,
+        total: windowed.totalDistinctAssets,
+        totalPages: Math.max(1, Math.ceil(windowed.totalDistinctAssets / ASSET_PAGE_SIZE)),
+      },
+      window,
+      distinctAssets: windowed.totalDistinctAssets,
+      topAsset: windowed.topAsset
+        ? { assetContract: windowed.topAsset.assetContract, assetSymbol: symbols.get(windowed.topAsset.assetContract) ?? null, count: windowed.topAsset.count }
+        : null,
+      settledInWindow,
+    };
+    return response;
+  });
+
+  app.get<{ Params: { contract: string } }>("/assets/:contract/stats", async (request): Promise<AssetStatsResponse> => {
+    const contract = request.params.contract;
+    const [stats, symbols] = await Promise.all([store.getAssetStats(contract), store.getAllAssetSymbols()]);
+    return {
+      assetContract: contract,
+      assetSymbol: symbols.get(contract) ?? null,
+      totalPayments: stats.totalPayments,
+      totalVolume: stats.totalVolume,
+      uniqueBuyers: stats.uniqueBuyers,
+      uniqueSellers: stats.uniqueSellers,
+      firstPaymentAt: stats.firstPaymentAt ?? null,
+      lastPaymentAt: stats.lastPaymentAt ?? null,
+    };
+  });
+
+  app.get<{ Params: { contract: string } }>(
+    "/assets/:contract/timeseries",
+    async (request): Promise<AssetTimeseriesResponse> => {
+      const contract = request.params.contract;
+      const [windows, symbols] = await Promise.all([store.getAssetWindowMatrix(contract), store.getAllAssetSymbols()]);
+      return { assetContract: contract, assetSymbol: symbols.get(contract) ?? null, windows };
+    },
+  );
+
+  app.get<{ Params: { contract: string } }>("/assets/:contract/payments", async (request, reply) => {
+    const limit = parseLimit((request.query as { limit?: string }).limit);
+    if (limit === undefined) {
+      return reply.code(400).send({
+        error: { code: "invalid_limit", message: `limit must be an integer between 1 and ${MAX_LIMIT}` },
+      });
+    }
+    const cursor = (request.query as { cursor?: string }).cursor;
+    const [result, symbols] = await Promise.all([
+      store.listPayments({ limit, assetContract: request.params.contract, ...(cursor !== undefined ? { cursor } : {}) }),
+      store.getAllAssetSymbols(),
+    ]);
+    return {
+      items: result.items.map(row => toResponse(row, symbols)),
+      pagination: { nextCursor: result.nextCursor ?? null, limit },
     };
   });
 
