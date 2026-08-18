@@ -21,3 +21,42 @@ export const TESTNET: NetworkConfig = {
 
 /** scvSymbol("transfer") as base64 XDR — the getEvents topic filter. */
 export const TRANSFER_TOPIC_B64 = "AAAADwAAAAh0cmFuc2Zlcg==";
+
+export interface AppConfig {
+  readonly port: number;
+  readonly host: string;
+  readonly network: NetworkConfig;
+  /** libSQL URL. A local file (file:./data/explorer.db) for dev, a Turso libsql:// URL in
+   * production — same client either way, per vellar-facilitator's store. */
+  readonly dbUrl: string;
+  readonly dbAuthToken: string | undefined;
+  /** getEvents poll cadence. Ledgers close ~5s apart; polling faster buys nothing. */
+  readonly pollIntervalMs: number;
+  /** How far behind the head a fresh (cursor-less) start begins. */
+  readonly backscanLedgers: number;
+}
+
+/** Fail fast, at startup, with a reason — never at first poll. */
+export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
+  const port = Number(env["PORT"] ?? 4200);
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    throw new Error(`PORT must be a valid port number, got "${env["PORT"]}"`);
+  }
+  const pollIntervalMs = Number(env["EXPLORER_POLL_INTERVAL_MS"] ?? 5000);
+  if (!Number.isInteger(pollIntervalMs) || pollIntervalMs < 500) {
+    throw new Error("EXPLORER_POLL_INTERVAL_MS must be an integer >= 500");
+  }
+  const backscanLedgers = Number(env["EXPLORER_BACKSCAN_LEDGERS"] ?? 200);
+  if (!Number.isInteger(backscanLedgers) || backscanLedgers < 1) {
+    throw new Error("EXPLORER_BACKSCAN_LEDGERS must be a positive integer");
+  }
+  return {
+    port,
+    host: env["HOST"] ?? "0.0.0.0",
+    network: TESTNET,
+    dbUrl: env["EXPLORER_DB_URL"] ?? "file:./data/explorer.db",
+    dbAuthToken: env["EXPLORER_DB_AUTH_TOKEN"],
+    pollIntervalMs,
+    backscanLedgers,
+  };
+}
