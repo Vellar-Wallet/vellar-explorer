@@ -157,7 +157,7 @@ export default async function FacilitatorsPage() {
           </p>
         </div>
         <div className="cta-banner-actions">
-          <a className="cta-secondary" href="https://docs.vellar.xyz" target="_blank" rel="noreferrer">
+          <a className="cta-secondary" href="https://docs.vellar.xyz/docs/facilitator" target="_blank" rel="noreferrer">
             What is a facilitator? →
           </a>
           <span className="toolbar-btn disabled" title="Not built yet">
