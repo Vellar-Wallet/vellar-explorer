@@ -521,6 +521,7 @@ table.feed a:hover {
 
 .bar-chart-col {
   flex: 1 1 0;
+  max-width: 28px;
   height: 100%;
   display: flex;
   align-items: flex-end;
@@ -538,6 +539,15 @@ table.feed a:hover {
 
 .bar-chart-col:hover .bar-chart-bar {
   opacity: 1;
+}
+
+.bar-chart-empty {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--muted2);
+  font-size: 13px;
+  padding: 20px;
 }
 
 .cta-banner {
