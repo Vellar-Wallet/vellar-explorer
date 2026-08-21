@@ -129,6 +129,7 @@ export class IndexerWorker {
           amount: match.amount,
           assetContract: match.assetContract,
           feeBumped: match.feeBumped,
+          scheme: match.scheme,
           facilitatorId: attribution.facilitatorId,
         });
         if (wasNew) {

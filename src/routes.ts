@@ -39,6 +39,7 @@ function toResponse(row: PaymentRow, symbols: ReadonlyMap<string, string>): Paym
     assetContract: row.assetContract,
     assetSymbol: symbols.get(row.assetContract) ?? null,
     feeBumped: row.feeBumped,
+    scheme: row.scheme,
     facilitator: {
       id: row.facilitatorId,
       confidence: row.facilitatorId === null ? "unattributed" : "matched-known-signer",

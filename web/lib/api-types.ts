@@ -25,6 +25,7 @@ export interface PaymentResponse {
   readonly assetContract: string;
   readonly assetSymbol: string | null;
   readonly feeBumped: boolean;
+  readonly scheme: "exact" | "upto";
   readonly facilitator: {
     readonly id: string | null;
     readonly confidence: "matched-known-signer" | "unattributed";

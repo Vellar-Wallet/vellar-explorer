@@ -10,14 +10,19 @@ function line(): void {
   console.log("─".repeat(72));
 }
 
-async function positiveCase(label: string, hash: string, expectMatch: boolean): Promise<void> {
+async function positiveCase(
+  label: string,
+  hash: string,
+  expectMatch: boolean,
+  expectScheme?: "exact" | "upto",
+): Promise<void> {
   line();
   console.log(`CASE: ${label}`);
   console.log(`  tx: ${hash}`);
   const result = await getTransaction(TESTNET.rpcUrl, hash);
   const match = classifyTransaction(result, TESTNET);
   if (match) {
-    console.log(`  MATCHED — ledger ${match.ledger}, ${match.amount} stroops`);
+    console.log(`  MATCHED — ${match.scheme}, ledger ${match.ledger}, ${match.amount} stroops`);
     console.log(`    from:  ${match.from}`);
     console.log(`    to:    ${match.to}`);
     console.log(`    asset: ${match.assetContract}`);
@@ -26,7 +31,8 @@ async function positiveCase(label: string, hash: string, expectMatch: boolean): 
   } else {
     console.log("  NO MATCH");
   }
-  const ok = expectMatch ? match !== null : match === null;
+  const schemeOk = expectScheme === undefined || match?.scheme === expectScheme;
+  const ok = (expectMatch ? match !== null : match === null) && schemeOk;
   console.log(ok ? "  ✓ expected result" : "  ✗ UNEXPECTED — heuristic gap found");
 }
 
@@ -111,6 +117,31 @@ async function main(): Promise<void> {
     process.argv[2] ?? "REPLACE_WITH_USDC_TX_HASH",
     true,
   );
+
+  // v3 — upto scheme. Three real, independently Horizon-confirmed settlements against
+  // vellar-facilitator's deployed contract (docs/upto-deployment.md), added the day the
+  // gap was found: these transactions predate this fix and were confirmed NOT to match
+  // under v2 before this branch existed. Amount is asserted implicitly by the classifier
+  // reading it from the token's own transfer event, not by this script re-deriving it.
+  await positiveCase(
+    "upto settlement — actual 400000 under a 1000000 ceiling (local-facilitator run)",
+    "72c816a63ab9da21b1403ff5199e4f21b9947c0769c55312a8cf0dc7e6ecf3db",
+    true,
+    "upto",
+  );
+  await positiveCase(
+    "upto settlement — actual 250000 under a 1000000 ceiling (hosted facilitator)",
+    "8b412ca6009031d12def2a6eab7fe5d3aa577486755e86ebb2cce272fa196e45",
+    true,
+    "upto",
+  );
+  await positiveCase(
+    "upto settlement — actual 730000 under a 2000000 ceiling (hosted facilitator)",
+    "0e5fffea1794800fd46a77919fe183bc4639d7dd5ffaf90ad7c2f336cf2e3f1e",
+    true,
+    "upto",
+  );
+
   if (process.argv[3]) {
     await positiveCase(
       "fresh real x402 settlement, throwaway token (plain demo.sh — should NOT match, wrong asset contract)",

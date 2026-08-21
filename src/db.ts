@@ -1,4 +1,5 @@
 import { createClient, type Client } from "@libsql/client";
+import type { PaymentScheme } from "./classify.js";
 
 /** One row as decoded by the classifier and, optionally, attributed to a known facilitator. */
 export interface PaymentInput {
@@ -14,6 +15,7 @@ export interface PaymentInput {
   readonly amount: string;
   readonly assetContract: string;
   readonly feeBumped: boolean;
+  readonly scheme: PaymentScheme;
   /** null = unattributed. Never the literal string "unknown" — one representation of
    * "we don't know," not two. The API layer is what turns null into "unknown" on the wire. */
   readonly facilitatorId: string | null;
@@ -176,7 +178,10 @@ const SCHEMA = [
      asset_contract  TEXT NOT NULL,
      fee_bumped      INTEGER NOT NULL,
      facilitator_id  TEXT,
-     ingested_at     TEXT NOT NULL
+     ingested_at     TEXT NOT NULL,
+     -- DEFAULT 'exact' matches ground truth for a fresh DB (no other scheme existed before
+     -- 2026-08-21) as much as it matches the migration backfill below — not a placeholder.
+     scheme          TEXT NOT NULL DEFAULT 'exact'
    )`,
   `CREATE INDEX IF NOT EXISTS idx_payments_closed_at   ON payments (closed_at DESC, tx_hash DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_payments_seller      ON payments (seller)`,
@@ -206,9 +211,17 @@ export class ExplorerStore {
 
   async init(): Promise<void> {
     for (const stmt of SCHEMA) await this.client.execute(stmt);
-    // Nothing to additively migrate yet — when a column is added later, follow
-    // vellar-facilitator's src/store.ts pattern: a PRAGMA table_info check + a guarded
-    // ALTER TABLE ADD COLUMN, not a migration framework.
+    // The first additive migration, following vellar-facilitator's src/store.ts pattern:
+    // CREATE TABLE IF NOT EXISTS does not add a column to a table that already exists, so a
+    // database created before the upto scheme shipped keeps the old nine-column shape and
+    // every query naming `scheme` fails. Checked against sqlite's own catalog rather than
+    // attempted-and-caught, for the same reason as there: "duplicate column name" would
+    // otherwise be swallowed by whatever handler swallows real errors.
+    const cols = await this.client.execute("PRAGMA table_info(payments)");
+    if (!cols.rows.some(r => r["name"] === "scheme")) {
+      console.warn("[store] migrating: adding payments.scheme (pre-upto-scheme database)");
+      await this.client.execute("ALTER TABLE payments ADD COLUMN scheme TEXT NOT NULL DEFAULT 'exact'");
+    }
   }
 
   /** Idempotent: inserting an already-known tx_hash is a no-op, not an error. The indexer relies
@@ -217,8 +230,8 @@ export class ExplorerStore {
     const result = await this.client.execute({
       sql: `INSERT INTO payments
               (tx_hash, ledger, closed_at, buyer, seller, sponsor, amount, asset_contract,
-               fee_bumped, facilitator_id, ingested_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               fee_bumped, facilitator_id, ingested_at, scheme)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(tx_hash) DO NOTHING`,
       args: [
         row.txHash,
@@ -232,6 +245,7 @@ export class ExplorerStore {
         row.feeBumped ? 1 : 0,
         row.facilitatorId,
         now().toISOString(),
+        row.scheme,
       ],
     });
     return { inserted: result.rowsAffected > 0 };
@@ -616,5 +630,8 @@ function toPaymentRow(row: Record<string, unknown>): PaymentRow {
     feeBumped: Number(row["fee_bumped"]) === 1,
     facilitatorId: row["facilitator_id"] === null ? null : String(row["facilitator_id"]),
     ingestedAt: String(row["ingested_at"]),
+    // Trusted the same way facilitatorId/feeBumped are: this column is only ever written by
+    // insertPayment with a value classify.ts produced, never by external input.
+    scheme: String(row["scheme"]) as PaymentScheme,
   };
 }

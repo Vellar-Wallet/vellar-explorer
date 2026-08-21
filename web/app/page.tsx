@@ -128,7 +128,7 @@ export default async function FeedPage({
                     </a>
                   </td>
                   <td title={p.feeBumped ? "sponsored via a CAP-15 fee-bump wrapper" : "sponsored via a plain tx (sponsor as source)"}>
-                    EXACT
+                    {p.scheme.toUpperCase()}
                   </td>
                   <td>{facilitatorBadge(p.facilitator.id)}</td>
                   <td>

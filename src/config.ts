@@ -11,6 +11,11 @@ export interface NetworkConfig {
   readonly passphrase: string;
   /** The asset this v1 heuristic watches. Widened later; USDC only for now. */
   readonly usdcSac: string;
+  /** upto-scheme settlement contracts this indexer recognizes, alongside the direct-transfer
+   *  `exact` heuristic. Each is expected to implement `settle(token, from, to, max_amount,
+   *  expiration_ledger, nonce, actual_amount, hook)` — see classify.ts's upto branch for the
+   *  exact shape it matches against. Widened by appending, same spirit as usdcSac. */
+  readonly uptoContracts: readonly string[];
 }
 
 export const TESTNET: NetworkConfig = {
@@ -21,6 +26,12 @@ export const TESTNET: NetworkConfig = {
   // Verified against vellar-facilitator's own demo pair (docs/accounts.md):
   // issuer GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5 (Circle, centre.io).
   usdcSac: "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+  uptoContracts: [
+    // vellar-facilitator, deployed 2026-08-21 from pinned, reviewed source — contract ID and
+    // wasm hash published for independent verification:
+    // https://github.com/Vellar-Wallet/vellar-facilitator/blob/main/docs/upto-deployment.md
+    "CDHPA64M73TUTEM4MMHIWIXINBQXH7JJXFGZMGH22VJWFJFROMR6QV2S",
+  ],
 };
 
 /** scvSymbol("transfer") as base64 XDR — the getEvents topic filter. */

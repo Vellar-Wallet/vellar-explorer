@@ -17,6 +17,7 @@ export interface PaymentResponse {
    * token). Same source as rail402's own labeling: the token itself, not a name/metadata service. */
   readonly assetSymbol: string | null;
   readonly feeBumped: boolean;
+  readonly scheme: "exact" | "upto";
   readonly facilitator: {
     readonly id: string | null;
     readonly confidence: "matched-known-signer" | "unattributed";
