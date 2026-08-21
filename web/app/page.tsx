@@ -128,7 +128,10 @@ export default async function FeedPage({
                     </a>
                   </td>
                   <td title={p.feeBumped ? "sponsored via a CAP-15 fee-bump wrapper" : "sponsored via a plain tx (sponsor as source)"}>
-                    {p.scheme.toUpperCase()}
+                    {/* Defensive against a stale backend deploy still serving pre-scheme rows —
+                        "exact" is not a guess in that case, it's the only scheme that existed
+                        before this field did, same default the DB migration itself uses. */}
+                    {(p.scheme ?? "exact").toUpperCase()}
                   </td>
                   <td>{facilitatorBadge(p.facilitator.id)}</td>
                   <td>
