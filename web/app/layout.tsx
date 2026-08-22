@@ -11,7 +11,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        <link href="https://api.fontshare.com/v2/css?f[]=clash-display@700,600,500&display=swap" rel="stylesheet" />
+        <link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700,500&display=swap" rel="stylesheet" />
         <link
           href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap"
           rel="stylesheet"
@@ -20,7 +20,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <div className="topbar">
           <div className="topbar-inner">
-            <span className="brand">x402 Explorer</span>
+            <span className="brand">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className="brand-mark" src="/logo-mark.png" alt="Vellar x402 Explorer" />
+            </span>
             <Nav />
           </div>
         </div>

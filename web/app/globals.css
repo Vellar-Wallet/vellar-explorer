@@ -1,16 +1,63 @@
-/* Tokens copied directly from docs.vellar.xyz's own stylesheet (_next/static/css, fetched
-   2026-08-18) — the real, current Vellar docs design system, not a reinterpretation of it. Same
-   variable names on purpose, so a future diff against the source is trivial. */
+/* ============================================================
+   x402 Explorer — "paper & signals" UI, self-contained.
+   Token values are a copy of the system source of truth
+   (vellar-dapp: apps/web/app/landing/landing.css .lp block) — keep in
+   sync; a shared token sheet is the eventual home.
+
+   Same rules as every Vellar surface (app, extension, docs): white
+   paper ground, forest ink, zero border-radius with 45° cut corners
+   (two-layer clip borders), no elevation shadows, Cabinet Grotesk for
+   numbers that matter, mono for genuinely monospaced content.
+   Status text on white (AA-checked): ok #0d7a55 · bad #c2372b.
+
+   Legacy variable names (--neo-bg, --signal, --muted2…) are kept as
+   aliases because chart components reference them inline. --signal is a
+   FILL colour on white — never body-size text (use --ok for that). */
+
 :root {
-  color-scheme: dark;
-  --neo-bg: #0a0f0d;
-  --neo-surface: #0e1512;
-  --line: rgba(255, 255, 255, 0.09);
-  --signal: #3ee6ad;
-  --ink: #eff5f2;
-  --muted: rgba(239, 245, 242, 0.74);
-  --muted2: rgba(239, 245, 242, 0.56);
-  --neo-inset: inset 4px 4px 10px rgba(0, 0, 0, 0.66), inset -4px -4px 10px rgba(62, 230, 173, 0.06);
+  color-scheme: light;
+  --paper: #ffffff;
+  --paper-tint: #f5f9f6;
+  --ink: #0c3b31;
+  --ink-soft: rgba(12, 59, 49, 0.74);
+  --ink-faint: rgba(12, 59, 49, 0.55);
+  --line: rgba(12, 59, 49, 0.16);
+  --line-strong: rgba(12, 59, 49, 0.32);
+  --mint: #3ee6ad;
+  --mint-soft: #dcf8ec;
+  --sun: #ffc94a;
+  --sun-soft: #ffefc9;
+  --ok: #0d7a55;
+  --bad: #c2372b;
+
+  /* Legacy aliases (inline chart styles reference these) */
+  --neo-bg: var(--paper);
+  --neo-surface: var(--paper-tint);
+  --signal: var(--mint);
+  --muted: var(--ink-soft);
+  --muted2: var(--ink-faint);
+
+  --display: "Cabinet Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
+  --body: "Plus Jakarta Sans", system-ui, sans-serif;
+  --mono-stack: "Space Mono", ui-monospace, monospace;
+
+  /* Cut shapes + 1px-inset inner shapes (the two-layer border) */
+  --clip-card: polygon(0 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%);
+  --clip-card-in: polygon(
+    1px 1px,
+    calc(100% - 1px) 1px,
+    calc(100% - 1px) calc(100% - 16.41px),
+    calc(100% - 16.41px) calc(100% - 1px),
+    1px calc(100% - 1px)
+  );
+  --clip-sm: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
+  --clip-sm-in: polygon(
+    1px 1px,
+    calc(100% - 1px) 1px,
+    calc(100% - 1px) calc(100% - 10.41px),
+    calc(100% - 10.41px) calc(100% - 1px),
+    1px calc(100% - 1px)
+  );
 }
 
 * {
@@ -19,29 +66,37 @@
 
 body {
   margin: 0;
-  background: var(--neo-bg);
+  background: var(--paper);
   color: var(--ink);
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: var(--body);
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
-h1, h2 {
-  font-family: "Clash Display", sans-serif;
+h1,
+h2 {
+  font-family: var(--display);
   color: var(--ink);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
 }
 
-/* ── Top bar + tabs — mirrors docs-topbar / docs-nav-link ─────────────── */
+::selection {
+  background: var(--mint);
+  color: var(--ink);
+}
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* ── Top bar + tabs — mirrors the docs topbar/nav ─────────────────────── */
 
 .topbar {
   position: sticky;
   top: 0;
   z-index: 50;
-  background: color-mix(in srgb, var(--neo-bg) 88%, transparent);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  background: var(--paper);
   border-bottom: 1px solid var(--line);
 }
 
@@ -56,12 +111,18 @@ h1, h2 {
 }
 
 .brand {
-  font-family: "Clash Display", sans-serif;
-  font-weight: 600;
-  font-size: 18px;
-  letter-spacing: 0.02em;
-  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 10px;
   flex-shrink: 0; /* the brand never shrinks or wraps - .tabs is the flexible/scrollable one */
+}
+.brand-mark {
+  /* asset is 2000×989 (~2.02:1); pin both dims so it can't squish */
+  display: block;
+  height: 34px;
+  width: 69px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .tabs {
@@ -79,28 +140,41 @@ h1, h2 {
 
 .tab {
   padding: 8px 14px;
-  border-radius: 10px;
   font-size: 14px;
   font-weight: 500;
   text-decoration: none;
-  color: var(--muted);
-  transition: color 0.15s, background 0.15s;
-}
-
-.tab:hover {
-  color: var(--ink);
-}
-
-.tab.active {
-  color: var(--signal);
-  background: var(--neo-bg);
-  box-shadow: var(--neo-inset);
-  font-weight: 700;
-}
-
-.tab {
+  color: var(--ink-soft);
+  clip-path: var(--clip-sm);
+  transition:
+    color 0.2s ease,
+    background 0.2s ease;
   flex-shrink: 0; /* a tab never gets squeezed illegibly - the row scrolls instead */
   white-space: nowrap;
+}
+
+.tab:hover:not(.active) {
+  color: var(--ink);
+  background: var(--paper-tint);
+}
+
+/* Active: mint fill inside a sharp ink border, cut corner included */
+.tab.active {
+  position: relative;
+  color: var(--ink);
+  background: var(--ink); /* the 1px border */
+  font-weight: 700;
+}
+.tab.active::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--mint-soft);
+  clip-path: var(--clip-sm-in);
+}
+.tab:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--ink);
 }
 
 @media (max-width: 640px) {
@@ -109,9 +183,9 @@ h1, h2 {
     padding: 0 14px;
   }
 
-  .brand {
-    flex-shrink: 0;
-    font-size: 15px;
+  .brand-mark {
+    height: 26px;
+    width: 53px;
   }
 
   .tab {
@@ -139,8 +213,33 @@ header.page-header h1 {
 
 header.page-header p {
   margin: 0;
-  color: var(--muted);
+  color: var(--ink-soft);
   max-width: 640px;
+}
+
+/* Cut-corner two-layer card, shared by every panel surface */
+.stat-card,
+section.breakdown,
+.donut-wrap,
+.table-wrap,
+.cta-banner {
+  position: relative;
+  background: var(--line-strong); /* the 1px border */
+  clip-path: var(--clip-card);
+  border: 0;
+  border-radius: 0;
+}
+.stat-card::before,
+section.breakdown::before,
+.donut-wrap::before,
+.table-wrap::before,
+.cta-banner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--paper);
+  clip-path: var(--clip-card-in);
 }
 
 .stats-grid {
@@ -151,23 +250,22 @@ header.page-header p {
 }
 
 .stat-card {
-  border: 1px solid var(--line);
-  background: var(--neo-surface);
-  border-radius: 14px;
   padding: 16px 18px;
 }
 
 .stat-card .label {
   font-size: 11px;
-  color: var(--muted2);
+  color: var(--ink-faint);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .stat-card .value {
-  font-family: "Clash Display", sans-serif;
+  font-family: var(--display);
+  font-weight: 700;
   font-size: 26px;
+  letter-spacing: -0.01em;
   color: var(--ink);
   margin-top: 6px;
   word-break: break-all;
@@ -175,15 +273,12 @@ header.page-header p {
 
 .stat-card .value.small {
   font-size: 14px;
-  font-family: "Space Mono", monospace;
+  font-family: var(--mono-stack);
   font-weight: 700;
-  color: var(--signal);
+  color: var(--ok);
 }
 
 section.breakdown {
-  border: 1px solid var(--line);
-  background: var(--neo-surface);
-  border-radius: 14px;
   padding: 16px 18px;
   margin-bottom: 20px;
 }
@@ -192,8 +287,8 @@ section.breakdown h2 {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--muted2);
-  font-family: "Plus Jakarta Sans", sans-serif;
+  color: var(--ink-faint);
+  font-family: var(--body);
   font-weight: 700;
   margin: 0 0 10px;
 }
@@ -205,51 +300,51 @@ section.breakdown h2 {
   padding: 7px 0;
   border-bottom: 1px solid var(--line);
   font-size: 13px;
-  color: var(--muted);
+  color: var(--ink-soft);
 }
 
 .breakdown-row:last-child {
   border-bottom: none;
 }
 
-/* ── Badges: signal-filled = confirmed/attributed, neutral = unknown ──── */
+/* ── Badges: mint-filled = confirmed/attributed, neutral = unknown ──── */
 
 .badge {
   display: inline-block;
   padding: 3px 10px;
-  border-radius: 999px;
+  border-radius: 0;
   font-size: 12px;
   font-weight: 700;
   border: 1px solid transparent;
 }
 
 .badge.unattributed {
-  background: var(--neo-surface);
-  border-color: var(--line);
-  color: var(--muted);
+  background: var(--paper);
+  border-color: var(--line-strong);
+  color: var(--ink-soft);
 }
 
 .badge.attributed {
-  background: var(--signal);
-  color: #04120c;
+  background: var(--mint-soft);
+  color: var(--ok);
 }
 
 .share-bar {
   display: flex;
   height: 14px;
-  border-radius: 999px;
+  border-radius: 0;
   overflow: hidden;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   margin: 4px 0 16px;
-  background: var(--neo-bg);
+  background: var(--paper);
 }
 
 .share-bar .segment.attributed {
-  background: var(--signal);
+  background: var(--mint);
 }
 
 .share-bar .segment.unattributed {
-  background: var(--muted2);
+  background: var(--ink-faint);
 }
 
 .share-legend {
@@ -257,19 +352,21 @@ section.breakdown h2 {
   gap: 16px;
   flex-wrap: wrap;
   font-size: 12px;
-  color: var(--muted);
+  color: var(--ink-soft);
   margin-bottom: 24px;
 }
 
+/* legend keys are functional colour swatches — cut squares, not dots */
 .share-legend .dot {
   display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  width: 9px;
+  height: 9px;
+  border-radius: 0;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%);
   margin-right: 5px;
 }
 
-/* ── Filter form — primary pill button matches docs-launch ─────────────── */
+/* ── Filter form ─────────────────────────────────────────────────────── */
 
 form.filters {
   display: flex;
@@ -278,45 +375,53 @@ form.filters {
   margin-bottom: 16px;
 }
 
-form.filters input {
-  border: 1px solid var(--line);
-  border-radius: 10px;
+form.filters input,
+form.filters select {
+  border: 1px solid var(--line-strong);
+  border-radius: 0;
   padding: 8px 12px;
   font-size: 13px;
-  min-width: 220px;
-  background: var(--neo-surface);
+  background: var(--paper);
   color: var(--ink);
-  font-family: "Plus Jakarta Sans", sans-serif;
+  font-family: var(--body);
+}
+form.filters input {
+  min-width: 220px;
 }
 
 form.filters input::placeholder {
-  color: var(--muted2);
+  color: var(--ink-faint);
 }
 
 form.filters button {
   border: none;
-  background: var(--signal);
-  color: #04120c;
-  border-radius: 999px;
+  background: var(--sun);
+  color: var(--ink);
+  border-radius: 0;
+  clip-path: var(--clip-sm);
   padding: 8px 18px;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+form.filters button:hover {
+  background: var(--ink);
+  color: var(--sun);
 }
 
 form.filters a.clear {
   align-self: center;
   font-size: 13px;
-  color: var(--muted);
+  color: var(--ink-soft);
 }
 
-/* ── Table — mirrors docs-prose table ──────────────────────────────────── */
+/* ── Table ───────────────────────────────────────────────────────────── */
 
 .table-wrap {
   overflow-x: auto;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--neo-surface);
 }
 
 table.feed {
@@ -330,27 +435,27 @@ table.feed th {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--muted2);
+  color: var(--ink-faint);
   border-bottom: 1px solid var(--line);
   padding: 10px 12px;
-  background: color-mix(in srgb, var(--neo-bg) 60%, transparent);
+  background: var(--paper-tint);
   font-weight: 700;
 }
 
 table.feed td {
   padding: 9px 12px;
   border-bottom: 1px solid var(--line);
-  font-family: "Space Mono", monospace;
+  font-family: var(--mono-stack);
   white-space: nowrap;
-  color: var(--muted);
+  color: var(--ink-soft);
 }
 
 /* A row that's first by position but isn't "ranked" (e.g. Unattributed on Facilitators) - same
  * treated background as the header, and a heavier bottom border so it visually reads as pinned
  * above the ranked rows, not just first in a tie. */
 tr.pinned-row td {
-  background: color-mix(in srgb, var(--neo-bg) 60%, transparent);
-  border-bottom: 2px solid var(--line);
+  background: var(--paper-tint);
+  border-bottom: 2px solid var(--line-strong);
 }
 
 table.feed tr:last-child td {
@@ -358,16 +463,21 @@ table.feed tr:last-child td {
 }
 
 table.feed a {
-  color: var(--signal);
-  text-decoration: none;
-  border-bottom: 1px solid color-mix(in srgb, var(--signal) 40%, transparent);
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--mint);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+  border-bottom: none;
+  transition: text-decoration-color 0.2s ease;
 }
 
 table.feed a:hover {
-  border-bottom-color: var(--signal);
+  text-decoration-color: var(--ink);
 }
 
-/* ── Pagination — mirrors docs-pager-link ──────────────────────────────── */
+/* ── Pagination — cut-corner two-layer cards ─────────────────────────── */
 
 .pagination {
   margin-top: 16px;
@@ -377,47 +487,57 @@ table.feed a:hover {
 }
 
 .pagination a {
+  position: relative;
   display: inline-block;
   color: var(--ink);
   text-decoration: none;
   font-size: 13px;
   font-weight: 700;
   padding: 10px 18px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: var(--neo-surface);
-  transition: transform 0.12s, border-color 0.2s;
+  border: 0;
+  border-radius: 0;
+  background: var(--line-strong); /* the 1px border */
+  clip-path: var(--clip-sm);
+  transition: translate 0.2s ease;
+}
+.pagination a::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--paper);
+  clip-path: var(--clip-sm-in);
 }
 
 .pagination a:hover {
-  transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--signal) 40%, var(--line));
+  translate: 0 -2px;
 }
 
 .empty {
   padding: 28px;
   text-align: center;
-  color: var(--muted2);
+  color: var(--ink-faint);
 }
 
-/* ── rail402-layout-inspired additions: toolbars, rank tables, charts, CTA ─── */
+/* ── Toolbars, rank tables, charts, CTA ──────────────────────────────── */
 
 .copy-btn {
-  border: 1px solid var(--line);
-  background: var(--neo-surface);
-  color: var(--muted);
-  border-radius: 6px;
+  border: 1px solid var(--line-strong);
+  background: var(--paper);
+  color: var(--ink-soft);
+  border-radius: 0;
   font-size: 11px;
   width: 20px;
   height: 20px;
   line-height: 1;
   cursor: pointer;
   margin-left: 4px;
+  transition: background 0.2s ease;
 }
 
 .copy-btn:hover {
   color: var(--ink);
-  border-color: color-mix(in srgb, var(--signal) 40%, var(--line));
+  background: var(--paper-tint);
 }
 
 .toolbar {
@@ -439,27 +559,43 @@ table.feed a:hover {
   font: inherit;
   font-size: 13px;
   font-weight: 600;
-  color: var(--muted);
-  background: var(--neo-surface);
-  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
   padding: 7px 14px;
-  border-radius: 10px;
+  border-radius: 0;
   cursor: pointer;
   text-decoration: none;
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  transition:
+    color 0.2s ease,
+    background 0.2s ease;
 }
 
-.toolbar-btn:hover {
+.toolbar-btn:hover:not(.active):not(.disabled) {
   color: var(--ink);
-  border-color: color-mix(in srgb, var(--signal) 40%, var(--line));
+  background: var(--paper-tint);
 }
 
+/* Active: mint fill inside a sharp ink border, cut corner included */
 .toolbar-btn.active {
-  color: var(--signal);
-  background: var(--neo-bg);
-  box-shadow: var(--neo-inset);
+  position: relative;
+  color: var(--ink);
+  border: 0;
+  padding: 8px 15px; /* compensate the removed 1px border */
+  background: var(--ink); /* the 1px border */
+  clip-path: var(--clip-sm);
+  font-weight: 700;
+}
+.toolbar-btn.active::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--mint-soft);
+  clip-path: var(--clip-sm-in);
 }
 
 .toolbar-btn.disabled {
@@ -472,10 +608,10 @@ table.feed a:hover {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  background: var(--line);
-  color: var(--muted2);
+  background: var(--sun-soft);
+  color: var(--ink);
   padding: 1px 5px;
-  border-radius: 999px;
+  border-radius: 0;
 }
 
 .two-col {
@@ -496,16 +632,13 @@ table.feed a:hover {
   flex-direction: column;
   align-items: center;
   gap: 16px;
-  border: 1px solid var(--line);
-  background: var(--neo-surface);
-  border-radius: 14px;
   padding: 20px;
 }
 
 .donut-legend {
   width: 100%;
   font-size: 12px;
-  color: var(--muted);
+  color: var(--ink-soft);
 }
 
 .donut-legend-row {
@@ -515,10 +648,12 @@ table.feed a:hover {
   padding: 4px 0;
 }
 
+/* legend keys are functional colour swatches — cut squares, not dots */
 .donut-legend-row .dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  width: 9px;
+  height: 9px;
+  border-radius: 0;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%);
   flex-shrink: 0;
 }
 
@@ -529,7 +664,7 @@ table.feed a:hover {
 }
 
 .rank-cell {
-  color: var(--muted2);
+  color: var(--ink-faint);
   font-weight: 700;
 }
 
@@ -540,22 +675,32 @@ table.feed a:hover {
 
 .row-subtitle {
   display: block;
-  color: var(--muted2);
+  color: var(--ink-faint);
   font-size: 11px;
   font-weight: 400;
   margin-top: 2px;
 }
 
 .bar-chart {
+  position: relative;
   display: flex;
   align-items: flex-end;
   gap: 3px;
   height: 160px;
   padding: 12px;
-  border: 1px solid var(--line);
-  background: var(--neo-bg);
-  border-radius: 14px;
+  background: var(--line-strong); /* the 1px border */
+  clip-path: var(--clip-card);
+  border: 0;
+  border-radius: 0;
   margin-bottom: 20px;
+}
+.bar-chart::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--paper-tint);
+  clip-path: var(--clip-card-in);
 }
 
 .bar-chart-col {
@@ -569,8 +714,8 @@ table.feed a:hover {
 
 .bar-chart-bar {
   width: 100%;
-  background: var(--signal);
-  border-radius: 3px 3px 0 0;
+  background: var(--mint);
+  border-radius: 0;
   min-height: 2px;
   opacity: 0.85;
   transition: opacity 0.15s;
@@ -584,7 +729,7 @@ table.feed a:hover {
   align-items: center;
   justify-content: center;
   text-align: center;
-  color: var(--muted2);
+  color: var(--ink-faint);
   font-size: 13px;
   padding: 20px;
 }
@@ -595,15 +740,12 @@ table.feed a:hover {
   justify-content: space-between;
   gap: 20px;
   flex-wrap: wrap;
-  background: var(--neo-surface);
-  border: 1px solid var(--line);
-  border-radius: 14px;
   padding: 20px 24px;
   margin-top: 24px;
 }
 
 .cta-banner h3 {
-  font-family: "Clash Display", sans-serif;
+  font-family: var(--display);
   font-size: 16px;
   margin: 0 0 6px;
   color: var(--ink);
@@ -611,7 +753,7 @@ table.feed a:hover {
 
 .cta-banner p {
   margin: 0;
-  color: var(--muted);
+  color: var(--ink-soft);
   font-size: 13px;
   max-width: 480px;
 }
@@ -626,58 +768,64 @@ table.feed a:hover {
   font-size: 13px;
   font-weight: 600;
   color: var(--ink);
-  background: var(--neo-bg);
-  border: 1px solid var(--line);
-  border-radius: 999px;
+  background: transparent;
+  border: 0;
+  box-shadow: inset 0 0 0 2px var(--ink);
+  border-radius: 0;
   padding: 9px 16px;
   text-decoration: none;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+.cta-secondary:hover {
+  background: var(--ink);
+  color: var(--paper);
 }
 
 .cta-primary {
   font-size: 13px;
   font-weight: 700;
-  color: #04120c;
-  background: var(--signal);
+  color: var(--ink);
+  background: var(--sun);
   border: none;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--clip-sm);
   padding: 9px 16px;
   text-decoration: none;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+.cta-primary:hover {
+  background: var(--ink);
+  color: var(--sun);
 }
 
 .load-more {
   display: block;
   text-align: center;
   padding: 12px;
-  color: var(--muted);
+  color: var(--ink-soft);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   text-decoration: none;
   border-top: 1px solid var(--line);
-  background: color-mix(in srgb, var(--neo-bg) 60%, transparent);
+  background: var(--paper-tint);
 }
 
 .load-more:hover {
-  color: var(--signal);
+  color: var(--ink);
 }
 
 .feed-caption {
   margin-top: 16px;
   font-size: 12px;
-  color: var(--muted2);
+  color: var(--ink-faint);
 }
 
 .feed-caption strong {
-  color: var(--muted);
-}
-
-form.filters select {
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 8px 12px;
-  font-size: 13px;
-  background: var(--neo-surface);
-  color: var(--ink);
-  font-family: "Plus Jakarta Sans", sans-serif;
+  color: var(--ink-soft);
 }
