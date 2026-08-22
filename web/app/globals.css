@@ -187,12 +187,19 @@ h2 {
     gap: 4px 8px;
   }
 
+  .brand {
+    flex: 1 0 100%;
+    justify-content: center;
+    margin-bottom: 8px;
+  }
+
   .brand-mark {
     height: 26px;
     width: 53px;
   }
 
   .tabs {
+    justify-content: center;
     flex: 1 0 100%;
     overflow-x: visible;
     flex-wrap: wrap;
