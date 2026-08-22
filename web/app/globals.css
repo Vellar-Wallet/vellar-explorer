@@ -178,9 +178,13 @@ h2 {
 }
 
 @media (max-width: 640px) {
+  /* Two-row topbar: brand on its own line, tabs on a full-width row
+     below it — everything fits, nothing scrolls */
   .topbar-inner {
-    gap: 12px;
-    padding: 0 14px;
+    flex-wrap: wrap;
+    height: auto;
+    padding: 10px 14px 8px;
+    gap: 4px 8px;
   }
 
   .brand-mark {
@@ -188,9 +192,16 @@ h2 {
     width: 53px;
   }
 
+  .tabs {
+    flex: 1 0 100%;
+    overflow-x: visible;
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+
   .tab {
-    padding: 7px 10px;
-    font-size: 13px;
+    padding: 6px 8px;
+    font-size: 12px;
   }
 }
 
