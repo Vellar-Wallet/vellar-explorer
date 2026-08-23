@@ -5,6 +5,7 @@ import type {
   EcosystemTimeseriesResponse,
   FacilitatorListResponse,
   PaymentListResponse,
+  PaymentResponse,
   SellerListResponse,
   StatsResponse,
   TimeWindowParam,
@@ -47,6 +48,15 @@ export async function listPayments(params: ListPaymentsParams): Promise<PaymentL
   const res = await fetch(`${apiUrl()}/payments?${qs.toString()}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`GET /payments returned HTTP ${res.status}`);
   return (await res.json()) as PaymentListResponse;
+}
+
+/** One payment by tx hash. Returns null on 404 — a hash that isn't an indexed x402
+ * payment is an expected lookup, not an error (any Stellar tx hash can be pasted in). */
+export async function getPayment(txHash: string): Promise<PaymentResponse | null> {
+  const res = await fetch(`${apiUrl()}/payments/${encodeURIComponent(txHash)}`, { cache: "no-store" });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`GET /payments/:txHash returned HTTP ${res.status}`);
+  return (await res.json()) as PaymentResponse;
 }
 
 export async function getFacilitators(): Promise<FacilitatorListResponse> {

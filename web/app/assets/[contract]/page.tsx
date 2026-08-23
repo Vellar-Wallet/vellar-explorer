@@ -1,5 +1,5 @@
 import { getAssetStats, getAssetTimeseries, listAssetPayments } from "../../../lib/api";
-import { assetLabel, formatAge, short, stellarExpertAccountUrl, stellarExpertTxUrl, toDecimal } from "../../../lib/format";
+import { assetLabel, formatAge, short, stellarExpertAccountUrl, toDecimal } from "../../../lib/format";
 import { CopyButton } from "../../components/CopyButton";
 
 export const dynamic = "force-dynamic";
@@ -146,7 +146,7 @@ export default async function AssetDetailPage({
                   <tr key={p.txHash}>
                     <td title={p.closedAt}>{formatAge(p.closedAt)}</td>
                     <td>
-                      <a href={stellarExpertTxUrl(p.txHash)} target="_blank" rel="noreferrer">
+                      <a href={`/payments/${p.txHash}`} title={p.txHash}>
                         {short(p.txHash)}
                       </a>
                       <CopyButton value={p.txHash} />

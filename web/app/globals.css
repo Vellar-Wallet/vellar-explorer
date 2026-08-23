@@ -702,6 +702,30 @@ table.feed a:hover {
   margin-top: 2px;
 }
 
+/* Payment detail: key-value tables. Full identifiers where there's room,
+   short ones on phones (the full value stays in the title attribute). */
+.feed.detail .row-title {
+  white-space: nowrap;
+  width: 1%;
+  padding-right: 24px;
+}
+.feed.detail td {
+  overflow-wrap: anywhere;
+  /* key-value rows wrap in place — never a sideways scroll for a label + one value */
+  white-space: normal;
+}
+.addr-short {
+  display: none;
+}
+@media (max-width: 800px) {
+  .addr-full {
+    display: none;
+  }
+  .addr-short {
+    display: inline;
+  }
+}
+
 .bar-chart {
   position: relative;
   display: flex;
