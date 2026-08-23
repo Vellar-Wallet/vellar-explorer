@@ -498,6 +498,23 @@ table.feed a:hover {
   text-decoration-color: var(--ink);
 }
 
+/* Content links outside tables (page headers, captions) get the same ink +
+   mint-underline treatment — nothing falls back to browser blue/purple. */
+.page-header a,
+.feed-caption a {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--mint);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+  transition: text-decoration-color 0.2s ease;
+}
+.page-header a:hover,
+.feed-caption a:hover {
+  text-decoration-color: var(--ink);
+}
+
 /* ── Pagination — cut-corner two-layer cards ─────────────────────────── */
 
 .pagination {
