@@ -117,10 +117,10 @@ h2 {
   flex-shrink: 0; /* the brand never shrinks or wraps - .tabs is the flexible/scrollable one */
 }
 .brand-mark {
-  /* asset is 2000×989 (~2.02:1); pin both dims so it can't squish */
+  /* asset is 1400×540 (~2.59:1); pin both dims so it can't squish */
   display: block;
-  height: 34px;
-  width: 69px;
+  height: 55px;
+  width: 143px;
   object-fit: contain;
   flex-shrink: 0;
 }
@@ -194,8 +194,8 @@ h2 {
   }
 
   .brand-mark {
-    height: 26px;
-    width: 53px;
+    height: 42px;
+    width: 109px;
   }
 
   .tabs {
