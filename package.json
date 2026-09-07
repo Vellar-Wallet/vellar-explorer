@@ -1,6 +1,7 @@
 {
   "name": "vellar-explorer",
   "version": "0.1.0",
+  "license": "Apache-2.0",
   "private": true,
   "description": "Public x402 payment explorer for Stellar — watches the network from the outside, browsable across any facilitator.",
   "type": "module",
