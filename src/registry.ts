@@ -17,10 +17,12 @@ export interface Attribution {
 }
 
 /** Verified against docs/accounts.md in vellar-facilitator: the hosted sponsor that signs every
- * fee-bump — or, per classify.ts's v2 finding, is the plain tx source — for that facilitator's
- * settlements. */
+ * fee-bump - or, per classify.ts's v2 finding, is the plain tx source - for that facilitator's
+ * settlements. One entry per network: a testnet sponsor and a mainnet sponsor are necessarily
+ * different funded accounts, never the same key across networks. */
 const KNOWN_SIGNERS: ReadonlyMap<string, string> = new Map([
-  ["GBUCR6H22CZC5OYHBJIEUS2JFZBOB63AHEGTCV6UEPMD2TMLKG2ZMIW4", "vellar"],
+  ["GBUCR6H22CZC5OYHBJIEUS2JFZBOB63AHEGTCV6UEPMD2TMLKG2ZMIW4", "vellar"], // testnet sponsor
+  ["GBB7PVDR642MJSALMD3PN4SAPZHUJP555XQMFJJNUH3AN33UQY7FVL3H", "vellar"], // mainnet sponsor
 ]);
 
 export function attributeFacilitator(sponsor: string): Attribution {
