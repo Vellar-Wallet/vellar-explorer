@@ -316,9 +316,23 @@ export class ExplorerStore {
 
   /** Five independent aggregate queries, run in parallel — each is a simple scan over the
    * existing schema, no new tables or precomputed rollups needed at this scale. */
-  async getStats(network?: string): Promise<Stats> {
-    const where = network !== undefined ? "WHERE network = ?" : "";
-    const args = network !== undefined ? [network] : [];
+  /** `network` undefined = all networks. `facilitatorId` undefined = all facilitators,
+   *  null = unattributed only, a string = that specific facilitator (same convention as
+   *  ListFilter.facilitatorId). */
+  async getStats(network?: string, facilitatorId?: string | null): Promise<Stats> {
+    const conditions: string[] = [];
+    const args: (string | number)[] = [];
+    if (network !== undefined) {
+      conditions.push("network = ?");
+      args.push(network);
+    }
+    if (facilitatorId === null) {
+      conditions.push("facilitator_id IS NULL");
+    } else if (facilitatorId !== undefined) {
+      conditions.push("facilitator_id = ?");
+      args.push(facilitatorId);
+    }
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
     const [totalResult, buyersResult, sellersResult, topAssetResult, breakdownResult, lastPaymentResult] =
       await Promise.all([
         this.client.execute({ sql: `SELECT COUNT(*) as n FROM payments ${where}`, args }),
@@ -555,10 +569,21 @@ export class ExplorerStore {
 
   /** Daily buckets only for v1 — `bucket` param threaded through now so a weekly/hourly option
    * doesn't require an API shape change later, even though only "day" is implemented.
-   * `network` undefined = all networks combined. */
-  async getEcosystemTimeseries(network?: string): Promise<EcosystemBucket[]> {
-    const where = network !== undefined ? "WHERE network = ?" : "";
-    const args = network !== undefined ? [network] : [];
+   * `network` undefined = all networks combined; `facilitatorId` same convention as getStats. */
+  async getEcosystemTimeseries(network?: string, facilitatorId?: string | null): Promise<EcosystemBucket[]> {
+    const conditions: string[] = [];
+    const args: (string | number)[] = [];
+    if (network !== undefined) {
+      conditions.push("network = ?");
+      args.push(network);
+    }
+    if (facilitatorId === null) {
+      conditions.push("facilitator_id IS NULL");
+    } else if (facilitatorId !== undefined) {
+      conditions.push("facilitator_id = ?");
+      args.push(facilitatorId);
+    }
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
     const result = await this.client.execute({
       sql: `SELECT strftime('%Y-%m-%d', closed_at) as day, facilitator_id, COUNT(*) as n
             FROM payments ${where} GROUP BY day, facilitator_id ORDER BY day ASC`,

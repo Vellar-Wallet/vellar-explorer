@@ -94,22 +94,25 @@ function windowSinceIso(window: TimeWindowParam, now: () => Date = () => new Dat
 export function registerRoutes(app: FastifyInstance, store: ExplorerStore): void {
   app.get("/health", async () => ({ status: "ok" }));
 
-  app.get<{ Querystring: { network?: string } }>("/stats", async (request): Promise<StatsResponse> => {
-    const [stats, symbols] = await Promise.all([
-      store.getStats(request.query.network),
-      store.getAllAssetSymbols(),
-    ]);
-    return {
-      totalPayments: stats.totalPayments,
-      uniqueBuyers: stats.uniqueBuyers,
-      uniqueSellers: stats.uniqueSellers,
-      topAsset: stats.topAsset
-        ? { assetContract: stats.topAsset.assetContract, assetSymbol: symbols.get(stats.topAsset.assetContract) ?? null, count: stats.topAsset.count }
-        : null,
-      facilitatorBreakdown: stats.facilitatorBreakdown,
-      lastPaymentAt: stats.lastPaymentAt ?? null,
-    };
-  });
+  app.get<{ Querystring: { network?: string; facilitator?: string } }>(
+    "/stats",
+    async (request): Promise<StatsResponse> => {
+      const [stats, symbols] = await Promise.all([
+        store.getStats(request.query.network, parseFacilitatorFilter(request.query.facilitator)),
+        store.getAllAssetSymbols(),
+      ]);
+      return {
+        totalPayments: stats.totalPayments,
+        uniqueBuyers: stats.uniqueBuyers,
+        uniqueSellers: stats.uniqueSellers,
+        topAsset: stats.topAsset
+          ? { assetContract: stats.topAsset.assetContract, assetSymbol: symbols.get(stats.topAsset.assetContract) ?? null, count: stats.topAsset.count }
+          : null,
+        facilitatorBreakdown: stats.facilitatorBreakdown,
+        lastPaymentAt: stats.lastPaymentAt ?? null,
+      };
+    },
+  );
 
   app.get<{
     Querystring: { limit?: string; cursor?: string; facilitator?: string; payTo?: string };
@@ -282,10 +285,13 @@ export function registerRoutes(app: FastifyInstance, store: ExplorerStore): void
     };
   });
 
-  app.get<{ Querystring: { network?: string } }>(
+  app.get<{ Querystring: { network?: string; facilitator?: string } }>(
     "/ecosystem/timeseries",
     async (request): Promise<EcosystemTimeseriesResponse> => {
-      const buckets = await store.getEcosystemTimeseries(request.query.network);
+      const buckets = await store.getEcosystemTimeseries(
+        request.query.network,
+        parseFacilitatorFilter(request.query.facilitator),
+      );
       return { bucket: "day", buckets };
     },
   );
