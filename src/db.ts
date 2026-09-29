@@ -194,7 +194,6 @@ const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS idx_payments_closed_at   ON payments (closed_at DESC, tx_hash DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_payments_seller      ON payments (seller)`,
   `CREATE INDEX IF NOT EXISTS idx_payments_facilitator ON payments (facilitator_id)`,
-  `CREATE INDEX IF NOT EXISTS idx_payments_network     ON payments (network, closed_at DESC)`,
   `CREATE TABLE IF NOT EXISTS cursors (
      network      TEXT PRIMARY KEY,
      cursor       TEXT,
