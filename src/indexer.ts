@@ -1,4 +1,4 @@
-import type { AppConfig } from "./config.js";
+import type { NetworkConfig } from "./config.js";
 import { TRANSFER_TOPIC_B64 } from "./config.js";
 import { classifyTransaction } from "./classify.js";
 import type { ExplorerStore } from "./db.js";
@@ -15,9 +15,17 @@ export interface IndexerCounters {
   errors: number;
 }
 
+/** Everything one IndexerWorker needs to poll ONE network. One instance is
+ *  constructed per entry in AppConfig.networks — see index.ts. */
+export interface IndexerWorkerConfig {
+  readonly network: NetworkConfig;
+  readonly pollIntervalMs: number;
+  readonly backscanLedgers: number;
+}
+
 export interface IndexerOptions {
   readonly store: ExplorerStore;
-  readonly config: AppConfig;
+  readonly config: IndexerWorkerConfig;
 }
 
 /**
@@ -42,7 +50,7 @@ export class IndexerWorker {
   };
 
   private readonly store: ExplorerStore;
-  private readonly config: AppConfig;
+  private readonly config: IndexerWorkerConfig;
   private timer: NodeJS.Timeout | undefined;
   private polling = false;
   private stopped = false;
@@ -121,6 +129,7 @@ export class IndexerWorker {
         const attribution = attributeFacilitator(match.feeSource ?? match.txSource);
         const { inserted: wasNew } = await this.store.insertPayment({
           txHash: match.txHash,
+          network: this.config.network.network,
           ledger: match.ledger,
           closedAt: match.closedAt,
           buyer: match.from,

@@ -4,6 +4,10 @@ import type { PaymentScheme } from "./classify.js";
 /** One row as decoded by the classifier and, optionally, attributed to a known facilitator. */
 export interface PaymentInput {
   readonly txHash: string;
+  /** The CAIP-2 network id this payment was observed on, e.g. "stellar:testnet" or
+   *  "stellar:pubnet" — same string NetworkConfig.network already carries. Stamped at insert
+   *  time from whichever IndexerWorker saw the transaction, never inferred later. */
+  readonly network: string;
   readonly ledger: number;
   readonly closedAt: string;
   readonly buyer: string;
@@ -169,6 +173,10 @@ function decodeCursor(raw: string): CursorKey | undefined {
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS payments (
      tx_hash         TEXT PRIMARY KEY,
+     -- DEFAULT 'stellar:testnet' matches ground truth for every row that predates this column:
+     -- this explorer only ever indexed testnet before mainnet support was added (2026-09-29),
+     -- same backfill reasoning as the scheme column's own default below.
+     network         TEXT NOT NULL DEFAULT 'stellar:testnet',
      ledger          INTEGER NOT NULL,
      closed_at       TEXT NOT NULL,
      buyer           TEXT NOT NULL,
@@ -186,6 +194,7 @@ const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS idx_payments_closed_at   ON payments (closed_at DESC, tx_hash DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_payments_seller      ON payments (seller)`,
   `CREATE INDEX IF NOT EXISTS idx_payments_facilitator ON payments (facilitator_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_payments_network     ON payments (network, closed_at DESC)`,
   `CREATE TABLE IF NOT EXISTS cursors (
      network      TEXT PRIMARY KEY,
      cursor       TEXT,
@@ -222,6 +231,13 @@ export class ExplorerStore {
       console.warn("[store] migrating: adding payments.scheme (pre-upto-scheme database)");
       await this.client.execute("ALTER TABLE payments ADD COLUMN scheme TEXT NOT NULL DEFAULT 'exact'");
     }
+    if (!cols.rows.some(r => r["name"] === "network")) {
+      console.warn("[store] migrating: adding payments.network (pre-mainnet-support database)");
+      await this.client.execute("ALTER TABLE payments ADD COLUMN network TEXT NOT NULL DEFAULT 'stellar:testnet'");
+      await this.client.execute(
+        "CREATE INDEX IF NOT EXISTS idx_payments_network ON payments (network, closed_at DESC)",
+      );
+    }
   }
 
   /** Idempotent: inserting an already-known tx_hash is a no-op, not an error. The indexer relies
@@ -229,12 +245,13 @@ export class ExplorerStore {
   async insertPayment(row: PaymentInput, now: () => Date = () => new Date()): Promise<{ inserted: boolean }> {
     const result = await this.client.execute({
       sql: `INSERT INTO payments
-              (tx_hash, ledger, closed_at, buyer, seller, sponsor, amount, asset_contract,
+              (tx_hash, network, ledger, closed_at, buyer, seller, sponsor, amount, asset_contract,
                fee_bumped, facilitator_id, ingested_at, scheme)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(tx_hash) DO NOTHING`,
       args: [
         row.txHash,
+        row.network,
         row.ledger,
         row.closedAt,
         row.buyer,
@@ -300,19 +317,23 @@ export class ExplorerStore {
 
   /** Five independent aggregate queries, run in parallel — each is a simple scan over the
    * existing schema, no new tables or precomputed rollups needed at this scale. */
-  async getStats(): Promise<Stats> {
+  async getStats(network?: string): Promise<Stats> {
+    const where = network !== undefined ? "WHERE network = ?" : "";
+    const args = network !== undefined ? [network] : [];
     const [totalResult, buyersResult, sellersResult, topAssetResult, breakdownResult, lastPaymentResult] =
       await Promise.all([
-        this.client.execute("SELECT COUNT(*) as n FROM payments"),
-        this.client.execute("SELECT COUNT(DISTINCT buyer) as n FROM payments"),
-        this.client.execute("SELECT COUNT(DISTINCT seller) as n FROM payments"),
-        this.client.execute(
-          "SELECT asset_contract, COUNT(*) as n FROM payments GROUP BY asset_contract ORDER BY n DESC LIMIT 1",
-        ),
-        this.client.execute(
-          "SELECT facilitator_id, COUNT(*) as n FROM payments GROUP BY facilitator_id ORDER BY n DESC",
-        ),
-        this.client.execute("SELECT MAX(closed_at) as last FROM payments"),
+        this.client.execute({ sql: `SELECT COUNT(*) as n FROM payments ${where}`, args }),
+        this.client.execute({ sql: `SELECT COUNT(DISTINCT buyer) as n FROM payments ${where}`, args }),
+        this.client.execute({ sql: `SELECT COUNT(DISTINCT seller) as n FROM payments ${where}`, args }),
+        this.client.execute({
+          sql: `SELECT asset_contract, COUNT(*) as n FROM payments ${where} GROUP BY asset_contract ORDER BY n DESC LIMIT 1`,
+          args,
+        }),
+        this.client.execute({
+          sql: `SELECT facilitator_id, COUNT(*) as n FROM payments ${where} GROUP BY facilitator_id ORDER BY n DESC`,
+          args,
+        }),
+        this.client.execute({ sql: `SELECT MAX(closed_at) as last FROM payments ${where}`, args }),
       ]);
 
     const topAssetRow = topAssetResult.rows[0];
@@ -534,12 +555,16 @@ export class ExplorerStore {
   }
 
   /** Daily buckets only for v1 — `bucket` param threaded through now so a weekly/hourly option
-   * doesn't require an API shape change later, even though only "day" is implemented. */
-  async getEcosystemTimeseries(): Promise<EcosystemBucket[]> {
-    const result = await this.client.execute(
-      `SELECT strftime('%Y-%m-%d', closed_at) as day, facilitator_id, COUNT(*) as n
-       FROM payments GROUP BY day, facilitator_id ORDER BY day ASC`,
-    );
+   * doesn't require an API shape change later, even though only "day" is implemented.
+   * `network` undefined = all networks combined. */
+  async getEcosystemTimeseries(network?: string): Promise<EcosystemBucket[]> {
+    const where = network !== undefined ? "WHERE network = ?" : "";
+    const args = network !== undefined ? [network] : [];
+    const result = await this.client.execute({
+      sql: `SELECT strftime('%Y-%m-%d', closed_at) as day, facilitator_id, COUNT(*) as n
+            FROM payments ${where} GROUP BY day, facilitator_id ORDER BY day ASC`,
+      args,
+    });
     const byDay = new Map<string, FacilitatorBreakdownEntry[]>();
     for (const row of result.rows) {
       const day = String(row["day"]);
@@ -620,6 +645,7 @@ export class ExplorerStore {
 function toPaymentRow(row: Record<string, unknown>): PaymentRow {
   return {
     txHash: String(row["tx_hash"]),
+    network: String(row["network"]),
     ledger: Number(row["ledger"]),
     closedAt: String(row["closed_at"]),
     buyer: String(row["buyer"]),

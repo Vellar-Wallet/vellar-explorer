@@ -94,8 +94,11 @@ function windowSinceIso(window: TimeWindowParam, now: () => Date = () => new Dat
 export function registerRoutes(app: FastifyInstance, store: ExplorerStore): void {
   app.get("/health", async () => ({ status: "ok" }));
 
-  app.get("/stats", async (): Promise<StatsResponse> => {
-    const [stats, symbols] = await Promise.all([store.getStats(), store.getAllAssetSymbols()]);
+  app.get<{ Querystring: { network?: string } }>("/stats", async (request): Promise<StatsResponse> => {
+    const [stats, symbols] = await Promise.all([
+      store.getStats(request.query.network),
+      store.getAllAssetSymbols(),
+    ]);
     return {
       totalPayments: stats.totalPayments,
       uniqueBuyers: stats.uniqueBuyers,
@@ -279,8 +282,11 @@ export function registerRoutes(app: FastifyInstance, store: ExplorerStore): void
     };
   });
 
-  app.get("/ecosystem/timeseries", async (): Promise<EcosystemTimeseriesResponse> => {
-    const buckets = await store.getEcosystemTimeseries();
-    return { bucket: "day", buckets };
-  });
+  app.get<{ Querystring: { network?: string } }>(
+    "/ecosystem/timeseries",
+    async (request): Promise<EcosystemTimeseriesResponse> => {
+      const buckets = await store.getEcosystemTimeseries(request.query.network);
+      return { bucket: "day", buckets };
+    },
+  );
 }

@@ -34,13 +34,33 @@ export const TESTNET: NetworkConfig = {
   ],
 };
 
+/** Mainnet, added alongside TESTNET so one process can run an indexer per
+ *  network against the same store — see index.ts. Contract IDs match what
+ *  vellar-facilitator's own Railway config runs in production (verified
+ *  live via /supported, 2026-09-29), not re-derived here. */
+export const MAINNET: NetworkConfig = {
+  network: "stellar:pubnet",
+  rpcUrl: "https://mainnet.sorobanrpc.com",
+  horizonUrl: "https://horizon.stellar.org",
+  passphrase: "Public Global Stellar Network ; September 2015",
+  usdcSac: "CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75",
+  uptoContracts: [
+    // vellar-facilitator's mainnet upto contract — see docs/mainnet-deployment-checklist.md
+    // in vellar-facilitator for why this differs from the testnet-only contract above.
+    "CCZL7CTRS6GWEYXDYD54DZM3OUHQW2S2A4KSU75SH275P3SFZLL4YQAN",
+  ],
+};
+
 /** scvSymbol("transfer") as base64 XDR — the getEvents topic filter. */
 export const TRANSFER_TOPIC_B64 = "AAAADwAAAAh0cmFuc2Zlcg==";
 
 export interface AppConfig {
   readonly port: number;
   readonly host: string;
-  readonly network: NetworkConfig;
+  /** The networks this instance indexes. Each entry gets its own IndexerWorker sharing one
+   *  store — see index.ts. Kept as a list (not a single NetworkConfig) so adding a third
+   *  network later is additive here, not a shape change through every consumer. */
+  readonly networks: readonly NetworkConfig[];
   /** libSQL URL. A local file (file:./data/explorer.db) for dev, a Turso libsql:// URL in
    * production — same client either way, per vellar-facilitator's store. */
   readonly dbUrl: string;
@@ -65,10 +85,30 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   if (!Number.isInteger(backscanLedgers) || backscanLedgers < 1) {
     throw new Error("EXPLORER_BACKSCAN_LEDGERS must be a positive integer");
   }
+  // EXPLORER_NETWORKS=testnet,mainnet (comma-separated). Defaults to testnet only, matching
+  // this explorer's behavior before mainnet support existed — an operator who deploys without
+  // setting this gets the exact same indexing scope as before, not a silent doubling of RPC
+  // load onto a network they never asked for.
+  const requested = (env["EXPLORER_NETWORKS"] ?? "testnet")
+    .split(",")
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+  const networkMap: Record<string, NetworkConfig> = { testnet: TESTNET, mainnet: MAINNET };
+  const networks = requested.map(name => {
+    const cfg = networkMap[name];
+    if (!cfg) {
+      throw new Error(`EXPLORER_NETWORKS: unknown network "${name}" — expected "testnet" or "mainnet"`);
+    }
+    return cfg;
+  });
+  if (networks.length === 0) {
+    throw new Error("EXPLORER_NETWORKS must name at least one network");
+  }
+
   return {
     port,
     host: env["HOST"] ?? "0.0.0.0",
-    network: TESTNET,
+    networks,
     dbUrl: env["EXPLORER_DB_URL"] ?? "file:./data/explorer.db",
     dbAuthToken: env["EXPLORER_DB_AUTH_TOKEN"],
     pollIntervalMs,

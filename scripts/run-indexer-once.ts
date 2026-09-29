@@ -10,7 +10,12 @@ const config = loadConfig({ ...process.env, EXPLORER_DB_URL: "file:./data/valida
 const store = new ExplorerStore(config.dbUrl, config.dbAuthToken);
 await store.init();
 
-const indexer = new IndexerWorker({ store, config });
+const [network] = config.networks;
+if (!network) throw new Error("no network configured");
+const indexer = new IndexerWorker({
+  store,
+  config: { network, pollIntervalMs: config.pollIntervalMs, backscanLedgers: config.backscanLedgers },
+});
 
 const rounds = Number(process.argv[2] ?? 3);
 for (let i = 0; i < rounds; i++) {
